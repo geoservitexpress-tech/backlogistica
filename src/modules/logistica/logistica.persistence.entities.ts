@@ -6,6 +6,7 @@ import { MetodoRecepcionOrmEntity } from './infrastructure/persistence/metodo-re
 import { PaqueteOrmEntity } from './infrastructure/persistence/paquete.orm-entity';
 import { PaisOrmEntity } from './infrastructure/persistence/pais.orm-entity';
 import { PedidoOrmEntity } from './infrastructure/persistence/pedido.orm-entity';
+import { RolOrmEntity } from './infrastructure/persistence/rol.orm-entity';
 import { TipoDocumentoOrmEntity } from './infrastructure/persistence/tipo-documento.orm-entity';
 import { TipoPedidoOrmEntity } from './infrastructure/persistence/tipo-pedido.orm-entity';
 import { TipoViaOrmEntity } from './infrastructure/persistence/tipo-via.orm-entity';
@@ -25,4 +26,5 @@ export const LOGISTICA_TYPEORM_ENTITIES = [
   UsuarioOrmEntity,
   DireccionOrmEntity,
   PedidoOrmEntity,
+  RolOrmEntity,
 ] as const;
