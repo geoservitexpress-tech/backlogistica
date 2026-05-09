@@ -17,37 +17,44 @@ const logger = new Logger('DatabaseModule');
           );
         }
 
-        try {
-          const normalized = url.replace(/^postgres:\/\//i, 'postgresql://');
-          const parsed = new URL(normalized);
-          const host = parsed.hostname;
-          const useDirect =
-            config.get<string>('DATABASE_USE_DIRECT_HOST', 'false').toLowerCase() === 'true';
+        const useDirect =
+          config.get<string>('DATABASE_USE_DIRECT_HOST', 'false').toLowerCase() === 'true';
+        const usesPooler = url.includes('pooler.supabase.com');
 
-          if (host.startsWith('db.') && host.endsWith('.supabase.co') && !useDirect) {
-            throw new Error(
-              [
-                'DATABASE_URL apunta al host directo de Supabase (db.*.supabase.co).',
-                'En muchas redes solo hay IPv4 y ese nombre no resuelve → getaddrinfo ENOTFOUND.',
-                '',
-                'Solución: en el dashboard → Connect → Postgres → elige Session pooler o Transaction pooler,',
-                'copia la URI (host …pooler.supabase.com, no db.…). Sustituye DATABASE_URL en tu .env.',
-                '',
-                'Si de verdad tienes IPv6 y quieres forzar el host directo, añade DATABASE_USE_DIRECT_HOST=true',
-              ].join('\n'),
-            );
-          }
+        // Comprobar el host directo solo si la cadena NO es del pooler (evita falsos positivos y
+        // errores de `new URL()` cuando la contraseña lleva `@` sin codificar).
+        if (!usesPooler && !useDirect) {
+          try {
+            const normalized = url.replace(/^postgres:\/\//i, 'postgresql://');
+            const parsed = new URL(normalized);
+            const host = parsed.hostname;
 
-          if (host.startsWith('db.') && host.endsWith('.supabase.co') && useDirect) {
-            logger.warn(
-              'DATABASE_USE_DIRECT_HOST=true: usando host db.*.supabase.co (requiere IPv6 o red compatible).',
-            );
+            if (host.startsWith('db.') && host.endsWith('.supabase.co')) {
+              throw new Error(
+                [
+                  'DATABASE_URL apunta al host directo de Supabase (db.*.supabase.co).',
+                  'En muchas redes solo hay IPv4 y ese nombre no resuelve → getaddrinfo ENOTFOUND.',
+                  '',
+                  'Solución: en el dashboard → Connect → Postgres → Session o Transaction pooler,',
+                  'copia la URI (debe contener …pooler.supabase.com). Sustituye DATABASE_URL en tu .env.',
+                  '',
+                  'Si la contraseña tiene @ u otros símbolos, codifícala en la URL (ej. @ → %40).',
+                  'Si de verdad tienes IPv6 y quieres el host directo: DATABASE_USE_DIRECT_HOST=true',
+                ].join('\n'),
+              );
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message.startsWith('DATABASE_URL apunta')) {
+              throw e;
+            }
+            // URL no parseable; TypeORM seguirá con la cadena tal cual
           }
-        } catch (e) {
-          if (e instanceof Error && e.message.startsWith('DATABASE_URL apunta')) {
-            throw e;
-          }
-          // URL no parseable; TypeORM seguirá con la cadena tal cual
+        }
+
+        if (useDirect && url.includes('db.') && url.includes('.supabase.co')) {
+          logger.warn(
+            'DATABASE_USE_DIRECT_HOST=true: usando host db.*.supabase.co (requiere IPv6 o red compatible).',
+          );
         }
 
         const synchronize = config.get<string>('TYPEORM_SYNC', 'false') === 'true';
