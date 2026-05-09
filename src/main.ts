@@ -20,6 +20,9 @@ async function bootstrap(): Promise<void> {
   expressApp.get('/doc', (_req, res) => {
     res.redirect(301, '/docs');
   });
+  expressApp.get('/swagger', (_req, res) => {
+    res.redirect(301, '/docs');
+  });
 
   await app.listen(process.env.PORT ?? 3000);
 }
