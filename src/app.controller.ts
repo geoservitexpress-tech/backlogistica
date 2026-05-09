@@ -40,7 +40,7 @@ export class AppController {
     <li><a href="/catalogo/tipos-via"><code>/catalogo/tipos-via</code></a></li>
   </ul>
   <p>Servidor en puerto <code>${port}</code>.</p>
-  <p>Documentación OpenAPI: <a href="/docs"><code>/docs</code></a> · <a href="/docs/json"><code>/docs/json</code></a></p>
+  <p>Documentación OpenAPI: <a href="/docs"><code>/docs</code></a> (también redirige <a href="/doc"><code>/doc</code></a>) · <a href="/docs/json"><code>/docs/json</code></a></p>
 </body>
 </html>`;
   }
