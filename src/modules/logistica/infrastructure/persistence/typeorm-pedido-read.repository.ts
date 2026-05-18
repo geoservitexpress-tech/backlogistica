@@ -1,8 +1,8 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { VAR } from '../../../configuracion/variable.keys';
 import { VariablesService } from '../../../configuracion/variables.service';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, QueryFailedError, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { Between, DataSource, FindOptionsWhere, QueryFailedError, Repository } from 'typeorm';
 import type { PedidoListado } from '../../domain/read-models/pedido-listado';
 import type { ListPedidosFilter } from '../../domain/ports/pedido-read.port';
 import { PedidoReadPort } from '../../domain/ports/pedido-read.port';
@@ -10,6 +10,7 @@ import { pedidoOrmToListado } from './pedido-listado.mapper';
 import { PEDIDO_RELATIONS } from './pedido.orm-relations';
 import { PedidoOrmEntity } from './pedido.orm-entity';
 import { SupabaseEvidenciasStorage } from '../storage/supabase-evidencias.storage';
+import { leerManifiestoDesdeSeguimiento } from './registrar-seguimiento-pedido';
 
 /** Inicio y fin (inclusive) del día `YYYY-MM-DD` en **UTC** (`creado_en` timestamptz). */
 function rangoDiaUtc(fechaYmd: string): { desde: Date; hasta: Date } {
@@ -46,12 +47,14 @@ async function rangoParaFiltroCreadoEn(
 
 async function enriquecerPedidoListadoDesdeStorage(
   evidencias: SupabaseEvidenciasStorage,
+  dataSource: DataSource,
   row: PedidoOrmEntity,
   listado: PedidoListado,
 ): Promise<PedidoListado> {
-  const [urls, manifiesto] = await Promise.all([
+  const [urls, manifiestoStorage, manifiestoDb] = await Promise.all([
     evidencias.listarUrlsFotosPedido(row.idPedido),
     evidencias.leerManifiestoPedido(row.idPedido),
+    leerManifiestoDesdeSeguimiento(dataSource.manager, row.idPedido).catch(() => null),
   ]);
   return {
     ...listado,
@@ -61,7 +64,8 @@ async function enriquecerPedidoListadoDesdeStorage(
         : urls.length > 0
           ? urls
           : null,
-    observacionesManifiesto: listado.observacionesManifiesto ?? manifiesto ?? null,
+    observacionesManifiesto:
+      manifiestoDb ?? listado.observacionesManifiesto ?? manifiestoStorage ?? null,
   };
 }
 
@@ -72,6 +76,7 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
   constructor(
     @InjectRepository(PedidoOrmEntity)
     private readonly repo: Repository<PedidoOrmEntity>,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly evidencias: SupabaseEvidenciasStorage,
     private readonly variables: VariablesService,
   ) {}
@@ -120,7 +125,7 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
       });
       const out = await Promise.all(
         rows.map(async (row) =>
-          enriquecerPedidoListadoDesdeStorage(this.evidencias, row, pedidoOrmToListado(row)),
+          enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row)),
         ),
       );
       this.logger.log(`listPedidos ${filtroDesc} idUsuario=${filter?.idUsuario ?? 'todos'} count=${out.length} ${Date.now() - t0}ms`);
@@ -130,7 +135,7 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
     const rows = await this.repo.find({ ...base, where: whereBase });
     const out = await Promise.all(
       rows.map(async (row) =>
-        enriquecerPedidoListadoDesdeStorage(this.evidencias, row, pedidoOrmToListado(row)),
+        enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row)),
       ),
     );
     this.logger.log(`listPedidos ${filtroDesc} idUsuario=${filter?.idUsuario ?? 'todos'} count=${out.length} ${Date.now() - t0}ms`);
@@ -151,7 +156,7 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
       const hit = Boolean(row);
       this.logger.log(`findPedidoById id_pedido=${id} hit=${hit} ${Date.now() - t0}ms`);
       if (!row) return null;
-      return enriquecerPedidoListadoDesdeStorage(this.evidencias, row, pedidoOrmToListado(row));
+      return enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row));
     } catch (e) {
       this.rethrowIfMissingRelation(e);
       throw e;
@@ -170,7 +175,7 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
       const hit = Boolean(row);
       this.logger.log(`findPedidoByNumGuia num_guia=${g} hit=${hit} ${Date.now() - t0}ms`);
       if (!row) return null;
-      return enriquecerPedidoListadoDesdeStorage(this.evidencias, row, pedidoOrmToListado(row));
+      return enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row));
     } catch (e) {
       this.rethrowIfMissingRelation(e);
       throw e;

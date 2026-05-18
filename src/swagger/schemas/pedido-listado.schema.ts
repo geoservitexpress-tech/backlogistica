@@ -76,7 +76,7 @@ export class PedidoListadoSchema {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'Texto del manifiesto (Storage `manifiesto.txt` si lo envió en el POST; `null` si no hay).',
+      'Texto del manifiesto (`descripcion_seguimiento.observaciones` del alta; `null` si no hay).',
     example:
       'Manipular con cuidado, llamar al recibir al número indicado en la etiqueta. Mercancía frágil.',
   })

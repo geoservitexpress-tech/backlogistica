@@ -40,6 +40,11 @@ import { VAR } from '../../../configuracion/variable.keys';
 import { VariablesService } from '../../../configuracion/variables.service';
 import { ESTADO_PEDIDO_CREADO_ID } from '../../logistica-pedido-estados.constants';
 import { ROL_ID_ADMINISTRADOR, ROL_ID_CLIENTE } from '../../logistica-rol.constants';
+import {
+  anexarFotosSeguimientoCreacion,
+  registrarSeguimientoCreacionPedido,
+  registrarSeguimientoManifiestoActualizado,
+} from './registrar-seguimiento-pedido';
 
 function generarNumGuia(): string {
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -214,8 +219,7 @@ async function resolverEstadoPedidoCreacion(
 }
 
 /**
- * Tras `POST /pedidos`: `observaciones_manifiesto` / `fotos_paquete_urls` no están en tu tabla `pedidos`.
- * Se devuelve texto del body; fotos se reemplazan por URLs públicas si se subieron a Supabase (`opts.fotosPublicas`).
+ * Tras `POST /pedidos`: manifiesto y fotos viven en `seguimiento` / `descripcion_seguimiento` (y Storage como respaldo).
  */
 function listadoPostCreacionConCamposNoPersistidos(
   listado: PedidoListado,
@@ -312,6 +316,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
     }
 
     const manifiestoTxt = input.observacionesManifiesto?.trim();
+    let idEstadoPedidoCreacion = ESTADO_PEDIDO_CREADO_ID;
 
     try {
       const listado = await this.dataSource.transaction(async (manager) => {
@@ -369,6 +374,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
         const tipoPedido = await resolverTipoPedidoPorId(manager, input.idTipoPedido);
         const metodo = await resolverMetodoRecepcionPorId(manager, input.idMetodoRecepcion);
         const estado = await resolverEstadoPedidoCreacion(manager, this.variables);
+        idEstadoPedidoCreacion = estado.idEstadoPedido;
 
         const destRepo = manager.getRepository(DestinatarioOrmEntity);
         const destinatario = destRepo.create({
@@ -404,7 +410,6 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           valorDeclarado: monto,
           fechaEntrega,
           fragil: input.fragil,
-          observacionesManifiesto: input.observacionesManifiesto?.trim() || null,
           destinatario,
           fotosPaqueteUrls: null,
         });
@@ -449,6 +454,15 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           `TX[${txnLabel}] insert pedido id_pedido=${idPedido} num_guia=${pedido.numGuia} fk_tipo_pedido=${tipoPedido.idTipoPedido}`,
         );
 
+        await registrarSeguimientoCreacionPedido(manager, {
+          idPedido,
+          idEstadoPedido: estado.idEstadoPedido,
+          observacionesManifiesto: manifiestoTxt ?? null,
+        });
+        this.logger.log(
+          `TX[${txnLabel}] seguimiento creación id_pedido=${idPedido} manifiesto=${manifiestoTxt ? 'sí' : 'no'}`,
+        );
+
         const row = await pedidoRepo.findOne({
           where: { idPedido },
           relations: [...PEDIDO_RELATIONS],
@@ -472,9 +486,17 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           `TX[${txnLabel}] storage bucket=evidencias prefijo=pedidos/${listado.idPedido}/ urls=${fotosPublicas?.length ?? 0}`,
         );
       }
-      if (manifiestoTxt) {
-        await this.evidencias.guardarManifiestoPedido(listado.idPedido, manifiestoTxt);
-        this.logger.log(`TX[${txnLabel}] storage manifiesto.txt pedidos/${listado.idPedido}/`);
+      if (fotosPublicas?.length) {
+        await this.dataSource.transaction(async (manager) => {
+          await anexarFotosSeguimientoCreacion(manager, {
+            idPedido: listado.idPedido,
+            idEstadoPedido: idEstadoPedidoCreacion,
+            fotosPaqueteUrls: fotosPublicas,
+          });
+        });
+        this.logger.log(
+          `TX[${txnLabel}] seguimiento fotos paquete id_pedido=${listado.idPedido} n=${fotosPublicas.length}`,
+        );
       }
       return listadoPostCreacionConCamposNoPersistidos(listado, input, { fotosPublicas });
     } catch (e) {
@@ -504,16 +526,21 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
       this.logger.log(`PATCH pedido=${idPedido} evidencias subidas batch=${fotosCrudas.length}`);
     }
 
-    if (patch.observacionesManifiesto !== undefined) {
-      const t = patch.observacionesManifiesto.trim();
-      if (t) await this.evidencias.guardarManifiestoPedido(idPedido, t);
-    }
+    const manifiestoPatch =
+      patch.observacionesManifiesto !== undefined ? patch.observacionesManifiesto.trim() : undefined;
 
     await this.dataSource.transaction(async (manager) => {
       const pedidoRepo = manager.getRepository(PedidoOrmEntity);
       const pedido = await pedidoRepo.findOne({
         where: { idPedido },
-        relations: ['direccion', 'direccion.tipoVia', 'direccion.ciudad', 'paquete', 'destinatario'],
+        relations: [
+          'direccion',
+          'direccion.tipoVia',
+          'direccion.ciudad',
+          'paquete',
+          'destinatario',
+          'estadoPedido',
+        ],
       });
       if (!pedido) {
         throw new InternalServerErrorException('Pedido no encontrado dentro de la transacción');
@@ -674,6 +701,14 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
       }
 
       await pedidoRepo.save(pedido);
+
+      if (manifiestoPatch) {
+        await registrarSeguimientoManifiestoActualizado(manager, {
+          idPedido,
+          idEstadoPedido: pedido.estadoPedido.idEstadoPedido,
+          observacionesManifiesto: manifiestoPatch,
+        });
+      }
     });
 
     return this.pedidoRead.findPedidoById(idPedido);

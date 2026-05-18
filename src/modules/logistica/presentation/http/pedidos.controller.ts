@@ -95,7 +95,7 @@ export class PedidosController {
       'Catálogos numéricos: `idTipoPedido`, `idMetodoRecepcion`, `idCiudad`, `idDepartamento`, `idPais` (ver **GET /catalogo/**). ' +
       '**Localidad Bogotá:** `idZonaBogota` solo si `idCiudad` = 149 (`GET /catalogo/zonas-bogota` → `direccion.fk_zona`). ' +
       'Dirección: **`nombreVia` → `direccion.zona`**, placas en `numeroPlaca` / `numeroSecundario`. ' +
-      '**Manifiesto:** `observacionesManifiesto` se devuelve en la respuesta (no hay columna en tu `pedidos`). **Fotos:** `fotosPaqueteUrls` (https) y/o `fotosPaqueteBase64` (máx. 8 en total); base64 se sube al bucket Supabase **`evidencias`** (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).',
+      '**Manifiesto:** `observacionesManifiesto` se guarda en `descripcion_seguimiento.observaciones` (paso inicial en `seguimiento`). **Fotos:** URLs en `descripcion_seguimiento.foto_url` y bucket **`evidencias`** (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).',
   })
   @ApiBody({
     description:

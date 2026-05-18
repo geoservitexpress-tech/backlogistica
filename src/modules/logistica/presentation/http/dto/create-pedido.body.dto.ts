@@ -182,7 +182,7 @@ export class CreatePedidoBodyDto {
 
   @ApiPropertyOptional({
     description:
-      'Observaciones del manifiesto (se guardan en Storage como `pedidos/{id}/manifiesto.txt` y aparecen en GET list/detail).',
+      'Observaciones del manifiesto (tablas `seguimiento` + `descripcion_seguimiento`; visible en GET list/detail).',
     example:
       'Manipular con cuidado, llamar al recibir al número indicado en la etiqueta. Mercancía frágil.',
   })

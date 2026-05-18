@@ -205,7 +205,7 @@ export class UpdatePedidoBodyDto {
   @Min(0)
   pesoKg?: number;
 
-  @ApiPropertyOptional({ description: 'Se guarda en Storage (`manifiesto.txt`)' })
+  @ApiPropertyOptional({ description: 'Se guarda en descripcion_seguimiento (manifiesto)' })
   @IsOptional()
   @IsString()
   @MaxLength(2000)
