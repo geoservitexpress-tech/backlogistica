@@ -36,6 +36,7 @@ export class AppController {
     <li><a href="/catalogo/roles"><code>/catalogo/roles</code></a></li>
     <li><a href="/catalogo/tipos-pedido"><code>/catalogo/tipos-pedido</code></a></li>
     <li><a href="/catalogo/metodos-recepcion"><code>/catalogo/metodos-recepcion</code></a></li>
+    <li><a href="/catalogo/zonas-bogota"><code>/catalogo/zonas-bogota</code></a></li>
     <li><a href="/catalogo/tipos-documento"><code>/catalogo/tipos-documento</code></a></li>
     <li><a href="/catalogo/tipos-via"><code>/catalogo/tipos-via</code></a></li>
   </ul>

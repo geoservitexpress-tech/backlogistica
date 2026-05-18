@@ -1,17 +1,21 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsUUID, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, Matches, Min } from 'class-validator';
+import { SWAGGER_EJEMPLO_ID_PEDIDO, SWAGGER_EJEMPLO_ID_USUARIO } from '../../../../../swagger/swagger-ejemplos';
 
 export class ListPedidosQueryDto {
   @ApiPropertyOptional({
-    format: 'uuid',
+    type: 'integer',
     description:
       'Devuelve **como máximo un** pedido con ese `pedidos.id_pedido` (array de 0 o 1 elemento). ' +
       'Para un solo objeto y 404 si no existe, use **GET /pedidos/{id}**.',
-    example: '7f6ca7e7-c7b0-48ef-94aa-805efeec41b9',
+    example: SWAGGER_EJEMPLO_ID_PEDIDO,
   })
   @IsOptional()
-  @IsUUID()
-  idPedido?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idPedido?: number;
 
   @ApiPropertyOptional({
     description: 'Filtra por día de `creado_en` (formato YYYY-MM-DD). No combinable con `idPedido`.',
@@ -22,11 +26,14 @@ export class ListPedidosQueryDto {
   fecha?: string;
 
   @ApiPropertyOptional({
-    format: 'uuid',
-    description: 'Filtra pedidos por `usuarios.id_usuario` del solicitante.',
-    example: 'e76e25c1-94dc-4ec8-b95d-f292b664d859',
+    type: 'integer',
+    example: SWAGGER_EJEMPLO_ID_USUARIO,
+    description:
+      'Filtra por `usuarios.id_usuario` (entero). Valor en **GET /auth/me** → `idUsuario`.',
   })
   @IsOptional()
-  @IsUUID()
-  idUsuario?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idUsuario?: number;
 }

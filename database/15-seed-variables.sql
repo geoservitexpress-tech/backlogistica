@@ -1,6 +1,10 @@
 -- Parámetros operativos (sustituyen variables de negocio en `.env`).
 -- Ejecutar después de 06-seed-estados-pedido.sql y 11-seed-rol.sql.
 -- Tipos: boolean | integer | integer_list | json | text
+--
+-- Usuarios: NO se insertan aquí. `usuarios.id_usuario` es entero (1, 2, …);
+-- el UUID de Supabase Auth va en `usuarios.auth_user_id` (creado con POST /auth/register).
+-- En JSON de hubs y pedidos use siempre el entero `id_usuario`, nunca el UUID de Auth.
 
 INSERT INTO public.variable (clave, valor, tipo, descripcion) VALUES
   (
@@ -73,7 +77,7 @@ INSERT INTO public.variable (clave, valor, tipo, descripcion) VALUES
     'ASIGNACION_REPARTIDORES_HUBS',
     '[]',
     'json',
-    'Array JSON de hubs: [{"idUsuario":"uuid","lat":4.65,"lng":-74.05}]'
+    'Hubs repartidor. idUsuario = usuarios.id_usuario (entero). Ej.: [{"idUsuario":2,"lat":4.651,"lng":-74.062,"idCiudad":149}] tras registrar repartidor (rol id 2).'
   ),
   (
     'LIST_PEDIDOS_FECHA_TZ',
@@ -86,6 +90,12 @@ INSERT INTO public.variable (clave, valor, tipo, descripcion) VALUES
     'true',
     'boolean',
     'Supabase Auth: confirmar correo al registrar sin email de verificación.'
-  );
+  )
+ON CONFLICT (clave) DO UPDATE SET
+  valor = EXCLUDED.valor,
+  tipo = EXCLUDED.tipo,
+  descripcion = EXCLUDED.descripcion,
+  actualizado_en = now();
 
 -- Verificar: SELECT clave, valor, tipo FROM public.variable ORDER BY clave;
+-- Tras registrar repartidor: UPDATE public.variable SET valor = '[{"idUsuario":2,"lat":4.651,"lng":-74.062,"idCiudad":149}]' WHERE clave = 'ASIGNACION_REPARTIDORES_HUBS';

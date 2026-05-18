@@ -17,6 +17,7 @@ import { TipoPedidoOrmEntity } from './infrastructure/persistence/tipo-pedido.or
 import { TipoViaOrmEntity } from './infrastructure/persistence/tipo-via.orm-entity';
 import { UsuarioOrmEntity } from './infrastructure/persistence/usuario.orm-entity';
 import { UsuarioRolOrmEntity } from './infrastructure/persistence/usuario-rol.orm-entity';
+import { ZonaBogotaOrmEntity } from './infrastructure/persistence/zona-bogota.orm-entity';
 
 /** Entidades TypeORM del bounded context logística (infraestructura). */
 export const LOGISTICA_TYPEORM_ENTITIES = [
@@ -28,6 +29,7 @@ export const LOGISTICA_TYPEORM_ENTITIES = [
   PaisOrmEntity,
   DepartamentoOrmEntity,
   CiudadOrmEntity,
+  ZonaBogotaOrmEntity,
   PaqueteOrmEntity,
   UsuarioOrmEntity,
   UsuarioRolOrmEntity,

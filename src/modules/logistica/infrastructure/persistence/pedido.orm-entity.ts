@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { DestinatarioOrmEntity } from './destinatario.orm-entity';
 import { DireccionOrmEntity } from './direccion.orm-entity';
 import { EstadoPedidoOrmEntity } from './estado-pedido.orm-entity';
@@ -10,8 +10,8 @@ import { UsuarioOrmEntity } from './usuario.orm-entity';
 
 @Entity({ name: 'pedidos' })
 export class PedidoOrmEntity {
-  @PrimaryColumn({ name: 'id_pedido', type: 'uuid' })
-  idPedido!: string;
+  @PrimaryGeneratedColumn({ name: 'id_pedido' })
+  idPedido!: number;
 
   @Column({ name: 'num_guia', type: 'varchar', length: 64 })
   numGuia!: string;
@@ -30,13 +30,13 @@ export class PedidoOrmEntity {
    */
   @Column({
     name: 'fk_cliente',
-    type: 'uuid',
+    type: 'int',
     nullable: true,
     select: false,
     insert: false,
     update: false,
   })
-  fkCliente!: string | null;
+  fkCliente!: number | null;
 
   @ManyToOne(() => UsuarioOrmEntity, { nullable: true })
   @JoinColumn({ name: 'fk_usuario_recolector' })

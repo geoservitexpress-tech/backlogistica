@@ -11,6 +11,7 @@ import { ListTiposPedidoUseCase } from '../../application/list-tipos-pedido.use-
 import { ListMetodosPagoUseCase } from '../../application/list-metodos-pago.use-case';
 import { ListResultadosEntregaUseCase } from '../../application/list-resultados-entrega.use-case';
 import { ListTiposViaUseCase } from '../../application/list-tipos-via.use-case';
+import { ListZonasBogotaUseCase } from '../../application/list-zonas-bogota.use-case';
 import { ListVariablesUseCase } from '../../application/list-variables.use-case';
 import { CatalogoFilaSchema } from '../../../../swagger/schemas/catalogo-fila.schema';
 import { ResultadoEntregaCatalogoSchema } from '../../../../swagger/schemas/resultado-entrega.schema';
@@ -28,6 +29,7 @@ export class CatalogoController {
     private readonly listMetodosRecepcion: ListMetodosRecepcionUseCase,
     private readonly listTiposDocumento: ListTiposDocumentoUseCase,
     private readonly listTiposVia: ListTiposViaUseCase,
+    private readonly listZonasBogota: ListZonasBogotaUseCase,
     private readonly listResultadosEntrega: ListResultadosEntregaUseCase,
     private readonly listMetodosPago: ListMetodosPagoUseCase,
     private readonly listVariables: ListVariablesUseCase,
@@ -86,7 +88,12 @@ export class CatalogoController {
   }
 
   @Get('metodos-recepcion')
-  @ApiOperation({ summary: 'Listar métodos de recepción' })
+  @ApiOperation({
+    summary: 'Métodos de recepción (alta de pedido)',
+    description:
+      'Valores para **`idMetodoRecepcion`** en **POST /pedidos** (ej. **1** = Recogida, **2** = Entrega). ' +
+      'Se persiste en `pedidos.fk_metodo_recepcion`.',
+  })
   @ApiOkResponse({ type: CatalogoFilaSchema, isArray: true })
   metodosRecepcion() {
     return this.listMetodosRecepcion.execute();
@@ -104,6 +111,18 @@ export class CatalogoController {
   @ApiOkResponse({ type: CatalogoFilaSchema, isArray: true })
   tiposVia() {
     return this.listTiposVia.execute();
+  }
+
+  @Get('zonas-bogota')
+  @ApiOperation({
+    summary: 'Localidades de Bogotá D.C.',
+    description:
+      'Valores para **`idZonaBogota`** en **POST /pedidos** (y PATCH de dirección) cuando **`idCiudad` = 149** (Bogotá D.C.). ' +
+      'Se persiste en `direccion.fk_zona`. Para otras ciudades **no** envíe este campo.',
+  })
+  @ApiOkResponse({ type: CatalogoFilaSchema, isArray: true })
+  zonasBogota() {
+    return this.listZonasBogota.execute();
   }
 
   @Get('resultados-entrega')

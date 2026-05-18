@@ -1,6 +1,8 @@
 -- Paso 1: vaciar el esquema de negocio (ejecutar en Supabase SQL Editor).
 -- ⚠️ Borra TODOS los datos de estas tablas. auth.users en Supabase NO se toca.
 -- Paso 2: ejecutar 01-schema-numeric-ids.sql
+-- Paso 3: semillas en orden (ver run-all-seeds.sql): 02 … 15
+-- Usuarios: recrearlos con POST /auth/register (id_usuario entero, auth_user_id uuid).
 
 -- Opción A: TRUNCATE (más rápido si las tablas ya existen con la estructura vieja)
 -- TRUNCATE TABLE

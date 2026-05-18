@@ -65,7 +65,7 @@ export class SupabaseEvidenciasStorage implements OnModuleInit {
   }
 
   /** URLs públicas de archivos en `evidencias/pedidos/{id}/` (excluye `manifiesto.txt`). */
-  async listarUrlsFotosPedido(idPedido: string): Promise<string[]> {
+  async listarUrlsFotosPedido(idPedido: string | number): Promise<string[]> {
     const client = this.client;
     if (!client) return [];
     const prefix = `pedidos/${idPedido}`;
@@ -84,7 +84,7 @@ export class SupabaseEvidenciasStorage implements OnModuleInit {
   }
 
   /** Texto guardado en `pedidos/{id}/manifiesto.txt` (UTF-8), si existe. */
-  async leerManifiestoPedido(idPedido: string): Promise<string | null> {
+  async leerManifiestoPedido(idPedido: string | number): Promise<string | null> {
     const client = this.client;
     if (!client) return null;
     const path = `pedidos/${idPedido}/manifiesto.txt`;
@@ -98,7 +98,7 @@ export class SupabaseEvidenciasStorage implements OnModuleInit {
   }
 
   /** JSON del formulario de entrega del repartidor (`entrega-formulario.json`). */
-  async guardarFormularioEntrega(idPedido: string, payload: unknown): Promise<void> {
+  async guardarFormularioEntrega(idPedido: string | number, payload: unknown): Promise<void> {
     const client = this.client;
     if (!client) return;
     const path = `pedidos/${idPedido}/entrega-formulario.json`;
@@ -113,7 +113,7 @@ export class SupabaseEvidenciasStorage implements OnModuleInit {
   }
 
   /** Sube una foto de evidencia de entrega; devuelve URL pública. */
-  async subirFotoEntrega(idPedido: string, entrada: string): Promise<string> {
+  async subirFotoEntrega(idPedido: string | number, entrada: string): Promise<string> {
     const urls = await this.resolverFotosPedido(idPedido, [entrada]);
     if (!urls[0]) {
       throw new BadRequestException('No se pudo procesar la foto de entrega.');
@@ -122,7 +122,7 @@ export class SupabaseEvidenciasStorage implements OnModuleInit {
   }
 
   /** Persiste observaciones del manifiesto en Storage (no requiere columna en `pedidos`). */
-  async guardarManifiestoPedido(idPedido: string, texto: string): Promise<void> {
+  async guardarManifiestoPedido(idPedido: string | number, texto: string): Promise<void> {
     const client = this.client;
     if (!client) return;
     const path = `pedidos/${idPedido}/manifiesto.txt`;
@@ -140,7 +140,7 @@ export class SupabaseEvidenciasStorage implements OnModuleInit {
    * Convierte cada entrada en URL pública: `https?://` se deja igual;
    * `data:image/...;base64,...` o base64 crudo (jpeg por defecto) se sube a `evidencias/pedidos/{idPedido}/…`.
    */
-  async resolverFotosPedido(idPedido: string, entradas: string[]): Promise<string[]> {
+  async resolverFotosPedido(idPedido: string | number, entradas: string[]): Promise<string[]> {
     const trimmed = entradas.map((e) => e.trim()).filter(Boolean);
     if (!trimmed.length) return [];
     const needsUpload = trimmed.some((s) => !/^https?:\/\//i.test(s));

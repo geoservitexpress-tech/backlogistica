@@ -7,7 +7,7 @@ export function setupSwagger(app: INestApplication): void {
     .setTitle('Backlogistica API')
     .setDescription(
       'API REST de logística (NestJS, arquitectura hexagonal). ' +
-        'Pedidos: listado con filtros (`idPedido`, `fecha`, `idUsuario`), **GET /pedidos/{id}** por UUID, **GET /pedidos/guia/{numGuia}**, alta y PATCH. ' +
+        'Pedidos: listado con filtros (`idPedido`, `fecha`, `idUsuario` entero), **GET /pedidos/{id}**, **GET /pedidos/guia/{numGuia}**, alta y PATCH. ' +
         'La dirección en respuestas usa nomenclatura colombiana (`zona` = número antes del `#`; placas en principal/secundario). ' +
         '**Repartidor** (JWT + rol REPARTIDOR): `GET /repartidor/pedidos` → `POST …/aceptar` (En Camino) → `POST …/confirmar-entrega` (formulario; Entregado si EXITO/NOVEDADES). ' +
         'Cobro y estado del paquete: body de confirmar-entrega; ver ejemplos en Swagger. ' +

@@ -12,5 +12,6 @@ export const PEDIDO_RELATIONS = [
   'direccion.pais',
   'direccion.departamento',
   'direccion.ciudad',
+  'direccion.zonaBogota',
   'destinatario',
 ] as const;

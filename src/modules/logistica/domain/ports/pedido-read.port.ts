@@ -4,16 +4,16 @@ import type { PedidoListado } from '../read-models/pedido-listado';
 export interface ListPedidosFilter {
   /** Día calendario en UTC, formato `YYYY-MM-DD`. */
   fecha?: string;
-  idUsuario?: string;
+  idUsuario?: number;
   /** Un solo pedido por `pedidos.id_pedido` (equivale a filtrar el listado a 0 o 1 fila). */
-  idPedido?: string;
+  idPedido?: number;
   /** `usuarios.id_usuario` del repartidor (`fk_usuario_repartidor`). */
-  idRepartidor?: string;
+  idRepartidor?: number;
 }
 
 export interface PedidoReadPort {
   listPedidos(filter?: ListPedidosFilter): Promise<PedidoListado[]>;
-  findPedidoById(id: string): Promise<PedidoListado | null>;
+  findPedidoById(id: number): Promise<PedidoListado | null>;
   /** `num_guia` único (ej. `BL-20260509-19B426`). */
   findPedidoByNumGuia(numGuia: string): Promise<PedidoListado | null>;
 }

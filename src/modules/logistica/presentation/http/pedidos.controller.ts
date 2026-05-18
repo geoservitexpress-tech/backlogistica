@@ -5,7 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -15,6 +15,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiExtraModels,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -22,19 +23,30 @@ import {
   ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
+import { AuthService } from '../../../auth/auth.service';
+import { CurrentSupabaseUser } from '../../../auth/decorators/current-supabase-user.decorator';
 import { SupabaseJwtGuard } from '../../../auth/guards/supabase-jwt.guard';
+import type { SupabaseJwtPayload } from '../../../auth/guards/supabase-jwt.guard';
 import { CreatePedidoUseCase } from '../../application/create-pedido.use-case';
 import { GetPedidoByIdUseCase } from '../../application/get-pedido-by-id.use-case';
 import { GetPedidoByNumGuiaUseCase } from '../../application/get-pedido-by-num-guia.use-case';
 import { ListPedidosUseCase } from '../../application/list-pedidos.use-case';
 import { UpdatePedidoUseCase } from '../../application/update-pedido.use-case';
 import { PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
+import {
+  EJEMPLO_CREAR_PEDIDO_CON_FOTOS_PAQUETE,
+  EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA,
+  EJEMPLO_PATCH_PEDIDO_ESTADO,
+} from '../../../../swagger/ejemplos/pedidos.ejemplos';
+import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import { CreatePedidoBodyDto } from './dto/create-pedido.body.dto';
 import { ListPedidosQueryDto } from './dto/list-pedidos.query.dto';
 import { UpdatePedidoBodyDto } from './dto/update-pedido.body.dto';
 
 @ApiTags('Pedidos')
+@ApiExtraModels(CreatePedidoBodyDto)
 @ApiBearerAuth('supabase-jwt')
 @ApiUnauthorizedResponse({
   description:
@@ -44,6 +56,7 @@ import { UpdatePedidoBodyDto } from './dto/update-pedido.body.dto';
 @Controller('pedidos')
 export class PedidosController {
   constructor(
+    private readonly auth: AuthService,
     private readonly listPedidos: ListPedidosUseCase,
     private readonly createPedido: CreatePedidoUseCase,
     private readonly getPedidoById: GetPedidoByIdUseCase,
@@ -60,10 +73,10 @@ export class PedidosController {
       'Para consultar **un pedido por id** con respuesta 404 explícita, prefiera **GET /pedidos/{id}**.',
   })
   @ApiOkResponse({ type: PedidoListadoSchema, isArray: true })
-  @ApiBadRequestResponse({ description: '`fecha` inválida o UUID mal formado en query' })
+  @ApiBadRequestResponse({ description: '`fecha` inválida o parámetros de query mal formados' })
   list(@Query() query: ListPedidosQueryDto) {
     return this.listPedidos.execute({
-      ...(query.idPedido && { idPedido: query.idPedido }),
+      ...(query.idPedido != null && { idPedido: query.idPedido }),
       ...(query.fecha && !query.idPedido && { fecha: query.fecha }),
       ...(query.idUsuario && !query.idPedido && { idUsuario: query.idUsuario }),
     });
@@ -75,21 +88,49 @@ export class PedidosController {
     summary: 'Crear pedido',
     description:
       'Crea un pedido con el cuerpo del formulario (destinatario, dirección, producto, manifiesto). ' +
-      '**Solicitante:** `idUsuario` (`usuarios.id_usuario`) con rol **Cliente** o **Administrador** vía `usuario_rol` y catálogo `rol`. ' +
+      '**Solicitante:** JWT → `usuarios.id_usuario` (**entero**, ver **GET /auth/me**). Rol Cliente o Administrador. ' +
       '**Modalidad:** `idTipoPedido` (Normal / Express, `GET /catalogo/tipos-pedido`). **Fecha:** `fechaEntrega` (`YYYY-MM-DD` → `pedidos.fecha_entrega`). ' +
-      '**Operación:** `tipoOperacion` = `DESPACHO` o `RECOLECCION` → `metodo_recepcion` (Entrega / Recogida). ' +
-      'El backend genera **`id_pedido`**, **`num_guia`**, **`creado_en`**, asigna **`fk_estado_pedido`** al estado **creado** (`PEDIDO_ESTADO_INICIAL_ID` opcional) y resuelve catálogos (tipo vía). Dirección: **`nombreVia` → `direccion.zona`** (antes del `#`), **`numeroPlaca` / `numeroSecundario`** = placas tras el `#` (p. ej. *Calle 11b # 15-40*). ' +
-      'Inserta filas en `direccion`, `paquete`, `destinatario` y `pedidos`. Requiere `idUsuario` (rol Cliente o Administrador), **`idCiudad`**, **`idDepartamento`**, **`idPais`** y catálogos. ' +
+      '**Recepción:** `idMetodoRecepcion` (ej. **2** = Entrega, `GET /catalogo/metodos-recepcion`). ' +
+      'El backend genera **`id_pedido`** (entero), **`num_guia`**, **`creado_en`**, asigna **`fk_estado_pedido`** según `public.variable` (`PEDIDO_ESTADO_INICIAL_ID`). ' +
+      'Catálogos numéricos: `idTipoPedido`, `idMetodoRecepcion`, `idCiudad`, `idDepartamento`, `idPais` (ver **GET /catalogo/**). ' +
+      '**Localidad Bogotá:** `idZonaBogota` solo si `idCiudad` = 149 (`GET /catalogo/zonas-bogota` → `direccion.fk_zona`). ' +
+      'Dirección: **`nombreVia` → `direccion.zona`**, placas en `numeroPlaca` / `numeroSecundario`. ' +
       '**Manifiesto:** `observacionesManifiesto` se devuelve en la respuesta (no hay columna en tu `pedidos`). **Fotos:** `fotosPaqueteUrls` (https) y/o `fotosPaqueteBase64` (máx. 8 en total); base64 se sube al bucket Supabase **`evidencias`** (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).',
   })
-  @ApiBody({ type: CreatePedidoBodyDto })
+  @ApiBody({
+    description:
+      '**No incluye `idUsuario`:** el solicitante se toma del JWT (Authorize). ' +
+      'Los IDs numéricos del ejemplo son catálogos (`idTipoPedido`, `idMetodoRecepcion`, `idPais`, etc.).',
+    schema: {
+      allOf: [{ $ref: getSchemaPath(CreatePedidoBodyDto) }],
+      example: EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA,
+    },
+    examples: {
+      despachoBogota: {
+        summary: 'Entrega Normal en Bogotá (recomendado)',
+        description:
+          'idTipoPedido=1, idMetodoRecepcion=2, idPais=1, idDepartamento=3, idCiudad=149, idZonaBogota=1. Sin idUsuario en el body.',
+        value: EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA,
+      },
+      conFotosPaquete: {
+        summary: 'Alta con fotos del paquete (base64)',
+        description:
+          'Incluye `fotosPaqueteBase64` (data URL). El servidor sube a Supabase **`evidencias`** en `pedidos/{id}/`.',
+        value: EJEMPLO_CREAR_PEDIDO_CON_FOTOS_PAQUETE,
+      },
+    },
+  })
   @ApiCreatedResponse({
     type: PedidoListadoSchema,
-    description: 'Pedido creado; `idPedido` es el UUID asignado por el servidor',
+    description: 'Pedido creado; `idPedido` es el entero asignado por el servidor',
   })
   @ApiBadRequestResponse({ description: 'FK inexistente u otro error de validación de datos' })
-  crear(@Body() body: CreatePedidoBodyDto) {
-    return this.createPedido.execute(body);
+  async crear(
+    @CurrentSupabaseUser() jwt: SupabaseJwtPayload,
+    @Body() body: CreatePedidoBodyDto,
+  ) {
+    const idUsuario = await this.auth.idUsuarioFromAuthSub(jwt.sub);
+    return this.createPedido.execute(body, idUsuario);
   }
 
   @Get('guia/:numGuia')
@@ -109,18 +150,18 @@ export class PedidosController {
   @ApiOperation({
     summary: 'Obtener pedido por id',
     description:
-      'Devuelve **un** pedido por `pedidos.id_pedido` (UUID). Misma forma que el listado (`PedidoListado`): `idPedido`, `numGuia`, `estadoPedido`, `usuarioRepartidor`, `direccion` con nomenclatura CO, manifiesto y fotos desde Storage si aplica.',
+      'Devuelve **un** pedido por `pedidos.id_pedido` (entero). Misma forma que el listado (`PedidoListado`).',
   })
   @ApiParam({
     name: 'id',
-    format: 'uuid',
-    example: '7f6ca7e7-c7b0-48ef-94aa-805efeec41b9',
-    description: 'Valor de `pedidos.id_pedido`',
+    type: 'integer',
+    example: SWAGGER_EJEMPLO_ID_PEDIDO,
+    description: '`pedidos.id_pedido`',
   })
   @ApiOkResponse({ type: PedidoListadoSchema })
-  @ApiBadRequestResponse({ description: 'El parámetro `id` no es un UUID válido' })
+  @ApiBadRequestResponse({ description: 'El parámetro `id` no es un entero válido' })
   @ApiNotFoundResponse({ description: 'No existe pedido con ese `id_pedido`' })
-  getOne(@Param('id', ParseUUIDPipe) id: string) {
+  getOne(@Param('id', ParseIntPipe) id: number) {
     return this.getPedidoById.execute(id);
   }
 
@@ -132,12 +173,20 @@ export class PedidosController {
       'Para **cambiar dirección completa** envíe todos: `tipoViaNombre`, `nombreVia`, `numeroPlaca`, `numeroSecundario`, `idCiudad`, `idDepartamento`, `idPais`. ' +
       '`observacionesDireccion` puede ir sola. Manifiesto/fotos se sincronizan con Storage como en el alta.',
   })
-  @ApiParam({ name: 'id', format: 'uuid', description: 'id_pedido' })
-  @ApiBody({ type: UpdatePedidoBodyDto })
+  @ApiParam({ name: 'id', type: 'integer', example: SWAGGER_EJEMPLO_ID_PEDIDO, description: 'id_pedido' })
+  @ApiBody({
+    type: UpdatePedidoBodyDto,
+    examples: {
+      estadoAsignado: {
+        summary: 'Pasar a Asignado + Entrega',
+        value: EJEMPLO_PATCH_PEDIDO_ESTADO,
+      },
+    },
+  })
   @ApiOkResponse({ type: PedidoListadoSchema })
   @ApiBadRequestResponse({ description: 'Body vacío o datos inválidos' })
   @ApiNotFoundResponse({ description: 'Pedido no encontrado' })
-  patch(@Param('id', ParseUUIDPipe) id: string, @Body() body: UpdatePedidoBodyDto) {
+  patch(@Param('id', ParseIntPipe) id: number, @Body() body: UpdatePedidoBodyDto) {
     return this.updatePedido.execute(id, body);
   }
 }

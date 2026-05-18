@@ -141,7 +141,7 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
   }
 }
 
-  async findPedidoById(id: string): Promise<PedidoListado | null> {
+  async findPedidoById(id: number): Promise<PedidoListado | null> {
     const t0 = Date.now();
     try {
       const row = await this.repo.findOne({

@@ -7,6 +7,12 @@ export class ListPaisesUseCase {
   constructor(@Inject(CATALOG_READ) private readonly catalog: CatalogReadPort) {}
 
   execute() {
-    return this.catalog.listPaises();
+    return this.catalog.listPaises().then((rows) =>
+      rows.map((r) => ({
+        idPais: r.idPais,
+        nombre: r.nombre,
+        codigoDane: r.codigoDane,
+      })),
+    );
   }
 }

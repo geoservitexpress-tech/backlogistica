@@ -19,7 +19,7 @@ export const ASIGNACION_DEFAULT_ESTADO_ASIGNADO_ID = ESTADO_PEDIDO_ASIGNADO_ID;
 
 /** Hub de repartidor: coordenadas GPS y/o ciudad de referencia. */
 export type RepartidorHubConfig = {
-  idUsuario: string;
+  idUsuario: number;
   lat?: number;
   lng?: number;
   idCiudad?: number;
@@ -61,8 +61,14 @@ function parseHubsJson(raw: string | undefined): RepartidorHubConfig[] {
     for (const x of arr) {
       if (!x || typeof x !== 'object') continue;
       const o = x as Record<string, unknown>;
-      const idUsuario = typeof o.idUsuario === 'string' ? o.idUsuario.trim() : '';
-      if (!idUsuario) continue;
+      const rawId = o.idUsuario;
+      let idUsuario: number | undefined;
+      if (typeof rawId === 'number' && Number.isInteger(rawId) && rawId > 0) {
+        idUsuario = rawId;
+      } else if (typeof rawId === 'string' && /^\d+$/.test(rawId.trim())) {
+        idUsuario = Number.parseInt(rawId.trim(), 10);
+      }
+      if (idUsuario == null) continue;
       const lat = typeof o.lat === 'number' ? o.lat : typeof o.latitud === 'number' ? o.latitud : undefined;
       const lng = typeof o.lng === 'number' ? o.lng : typeof o.longitud === 'number' ? o.longitud : undefined;
       const rawCiudad = o.idCiudad ?? o.fkCiudad;
@@ -142,17 +148,17 @@ export class AsignacionRepartidoresService {
   }
 
   private async cargarCoordenadasDirecciones(
-    ids: string[],
-  ): Promise<Map<string, LatLng>> {
-    const map = new Map<string, LatLng>();
+    ids: number[],
+  ): Promise<Map<number, LatLng>> {
+    const map = new Map<number, LatLng>();
     if (ids.length === 0) return map;
     const tiene = await this.direccionTieneColumnasCoordenadas();
     if (!tiene) return map;
     const rows = (await this.dataSource.query(
-      `select id_direccion::text as id, latitud::float8 as lat, longitud::float8 as lng
-       from direccion where id_direccion = any($1::uuid[])`,
+      `select id_direccion as id, latitud::float8 as lat, longitud::float8 as lng
+       from direccion where id_direccion = any($1::int[])`,
       [ids],
-    )) as { id: string; lat: number | null; lng: number | null }[];
+    )) as { id: number; lat: number | null; lng: number | null }[];
     for (const row of rows) {
       if (row.lat != null && row.lng != null && Number.isFinite(row.lat) && Number.isFinite(row.lng)) {
         map.set(row.id, { lat: row.lat, lng: row.lng });
@@ -167,7 +173,7 @@ export class AsignacionRepartidoresService {
    */
   private async rellenarCoordsNominatimOpcional(
     pedidos: PedidoOrmEntity[],
-    coordsPorDireccion: Map<string, LatLng>,
+    coordsPorDireccion: Map<number, LatLng>,
   ): Promise<{ intentadas: number; aciertos: number }> {
     const geocoding = await this.variables.getBoolean(VAR.ASIGNACION_GEOCODING_NOMINATIM, false);
     if (!geocoding) {
@@ -269,8 +275,8 @@ export class AsignacionRepartidoresService {
   }
 
   private posicionInicialRepartidor(
-    repId: string,
-    hubByRep: Map<string, RepartidorHubConfig>,
+    repId: number,
+    hubByRep: Map<number, RepartidorHubConfig>,
     coordsGlobalesDia: LatLng | null,
     coordsPorCiudadHub: Map<number, LatLng>,
   ): LatLng | null {
@@ -291,9 +297,9 @@ export class AsignacionRepartidoresService {
   private async procesarDiaAsignacion(params: {
     dia: string;
     lista: PedidoOrmEntity[];
-    repIds: string[];
-    hubByRep: Map<string, RepartidorHubConfig>;
-    coordsPorDireccion: Map<string, LatLng>;
+    repIds: number[];
+    hubByRep: Map<number, RepartidorHubConfig>;
+    coordsPorDireccion: Map<number, LatLng>;
     cargaPorRepDia: Map<string, number>;
     maxPorDia: number;
     idsEstadosElegibles: number[];
@@ -327,7 +333,7 @@ export class AsignacionRepartidoresService {
       if (c) coordsPorCiudadHub.set(h.idCiudad, c);
     }
 
-    const repPosicionActual = new Map<string, LatLng | null>();
+    const repPosicionActual = new Map<number, LatLng | null>();
     for (const r of repIds) {
       repPosicionActual.set(
         r,
@@ -335,12 +341,12 @@ export class AsignacionRepartidoresService {
       );
     }
 
-    const asignacionesPorRep = new Map<string, number>();
+    const asignacionesPorRep = new Map<number, number>();
     for (const r of repIds) {
       asignacionesPorRep.set(r, 0);
     }
 
-    const rutasBatch = new Map<string, { idPedido: string; coords: LatLng }[]>();
+    const rutasBatch = new Map<number, { idPedido: number; coords: LatLng }[]>();
 
     const unassigned = [...lista].sort((a, b) => a.creadoEn.getTime() - b.creadoEn.getTime());
     let asignados = 0;
@@ -348,7 +354,7 @@ export class AsignacionRepartidoresService {
 
     while (unassigned.length > 0) {
       let bestP: PedidoOrmEntity | null = null;
-      let bestR: string | null = null;
+      let bestR: number | null = null;
       let bestScore = Number.POSITIVE_INFINITY;
       let bestCarga = Number.POSITIVE_INFINITY;
 
@@ -395,14 +401,14 @@ export class AsignacionRepartidoresService {
 
       const upd = (await this.dataSource.query(
         `update pedidos
-         set fk_usuario_repartidor = $2::uuid,
-             fk_estado_pedido = $3::uuid
-         where id_pedido = $1::uuid
-           and fk_estado_pedido = any($4::uuid[])
+         set fk_usuario_repartidor = $2::int,
+             fk_estado_pedido = $3::int
+         where id_pedido = $1::int
+           and fk_estado_pedido = any($4::int[])
            and fk_usuario_repartidor is null
          returning id_pedido`,
         [bestP.idPedido, bestR, idAsignado, idsEstadosElegibles],
-      )) as { id_pedido: string }[];
+      )) as { id_pedido: number }[];
 
       if (upd.length === 0) {
         const idx = unassigned.findIndex((x) => x.idPedido === bestP.idPedido);
@@ -499,13 +505,13 @@ export class AsignacionRepartidoresService {
     const maxPorDia = await this.maxEntregasPorRepartidorDia();
 
     const rowsCupo = (await this.dataSource.query(
-      `select fk_usuario_repartidor::text as rep, to_char(fecha_entrega, 'YYYY-MM-DD') as dia, count(*)::int as c
+      `select fk_usuario_repartidor::int as rep, to_char(fecha_entrega, 'YYYY-MM-DD') as dia, count(*)::int as c
        from pedidos
        where fk_usuario_repartidor is not null
-         and fk_usuario_repartidor = any($1::uuid[])
+         and fk_usuario_repartidor = any($1::int[])
        group by fk_usuario_repartidor, fecha_entrega`,
       [repIds],
-    )) as { rep: string; dia: string; c: number }[];
+    )) as { rep: number; dia: string; c: number }[];
 
     const cargaPorRepDia = new Map<string, number>();
     for (const row of rowsCupo) {

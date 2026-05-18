@@ -2,8 +2,8 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'metodo_pago' })
 export class MetodoPagoOrmEntity {
-  @PrimaryColumn({ name: 'id_metodo_pago', type: 'uuid' })
-  idMetodoPago!: string;
+  @PrimaryColumn({ name: 'id_metodo_pago', type: 'int' })
+  idMetodoPago!: number;
 
   @Column({ type: 'varchar', length: 80 })
   nombre!: string;

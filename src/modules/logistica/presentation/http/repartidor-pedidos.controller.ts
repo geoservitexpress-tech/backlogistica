@@ -5,7 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
+  ParseIntPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -28,6 +28,7 @@ import {
   EJEMPLO_ENTREGA_NOVEDADES,
   EJEMPLO_ENTREGA_NO_ENTREGADO,
 } from '../../../../swagger/ejemplos/confirmar-entrega-repartidor.ejemplos';
+import { AuthService } from '../../../auth/auth.service';
 import { CurrentSupabaseUser } from '../../../auth/decorators/current-supabase-user.decorator';
 import { RepartidorRoleGuard } from '../../../auth/guards/repartidor-role.guard';
 import { SupabaseJwtGuard } from '../../../auth/guards/supabase-jwt.guard';
@@ -36,6 +37,12 @@ import { ListPedidosRepartidorUseCase } from '../../application/list-pedidos-rep
 import { RepartidorAceptarPedidoUseCase } from '../../application/repartidor-aceptar-pedido.use-case';
 import { RepartidorConfirmarEntregaUseCase } from '../../application/repartidor-confirmar-entrega.use-case';
 import { PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
+import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
+import {
+  ESTADO_PEDIDO_ASIGNADO_ID,
+  ESTADO_PEDIDO_ENTREGADO_ID,
+  ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
+} from '../../logistica-pedido-estados.constants';
 import { ConfirmarEntregaRepartidorBodyDto } from './dto/confirmar-entrega-repartidor.body.dto';
 
 @ApiTags('Repartidor')
@@ -49,6 +56,7 @@ import { ConfirmarEntregaRepartidorBodyDto } from './dto/confirmar-entrega-repar
 @Controller('repartidor/pedidos')
 export class RepartidorPedidosController {
   constructor(
+    private readonly auth: AuthService,
     private readonly listMisPedidos: ListPedidosRepartidorUseCase,
     private readonly aceptarPedido: RepartidorAceptarPedidoUseCase,
     private readonly confirmarEntrega: RepartidorConfirmarEntregaUseCase,
@@ -60,14 +68,15 @@ export class RepartidorPedidosController {
     description:
       'Lista pedidos donde `fk_usuario_repartidor` = `sub` del JWT.\n\n' +
       '**Flujo app repartidor:**\n' +
-      '1. Cron/admin asigna rep → estado **Asignado** (`c5604927-…`)\n' +
-      '2. `POST /repartidor/pedidos/{id}/aceptar` → **En Camino** (`04e6c3bb-…`)\n' +
-      '3. Formulario en destino → `POST /repartidor/pedidos/{id}/confirmar-entrega` → **Entregado** (`aafaed49-…`) si EXITO/NOVEDADES',
+      `1. Cron/admin asigna rep → estado **Asignado** (id **${ESTADO_PEDIDO_ASIGNADO_ID}**)\n` +
+      `2. \`POST /repartidor/pedidos/{id}/aceptar\` → **Recibido repartidor / En camino** (id **${ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID}**, variable \`REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID\`)\n` +
+      `3. Formulario en destino → \`POST /repartidor/pedidos/{id}/confirmar-entrega\` → **Entregado** (id **${ESTADO_PEDIDO_ENTREGADO_ID}**) si EXITO/NOVEDADES`,
   })
   @ApiOkResponse({ type: PedidoListadoSchema, isArray: true })
   @ApiForbiddenResponse({ description: 'El usuario no tiene rol REPARTIDOR' })
-  listar(@CurrentSupabaseUser() jwt: SupabaseJwtPayload) {
-    return this.listMisPedidos.execute(jwt.sub);
+  async listar(@CurrentSupabaseUser() jwt: SupabaseJwtPayload) {
+    const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
+    return this.listMisPedidos.execute(idRepartidor);
   }
 
   @Post(':id/aceptar')
@@ -76,13 +85,13 @@ export class RepartidorPedidosController {
     summary: 'Aceptar pedido (En Camino)',
     description:
       'El repartidor confirma la entrega asignada: el pedido debe estar en estado **Asignado**, asignado a él, ' +
-      'y pasa a **En Camino** (`fk_estado_pedido` = `04e6c3bb-d0ab-4697-ba4c-b01000376cf0` por defecto; ver `REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID`).',
+      `y pasa a **En Camino** (\`fk_estado_pedido\` = **${ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID}** por defecto; ver \`REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID\` en \`public.variable\`).`,
   })
   @ApiParam({
     name: 'id',
-    format: 'uuid',
+    type: 'integer',
     description: '`pedidos.id_pedido`',
-    example: '7f6ca7e7-c7b0-48ef-94aa-805efeec41b9',
+    example: SWAGGER_EJEMPLO_ID_PEDIDO,
   })
   @ApiOkResponse({
     type: PedidoListadoSchema,
@@ -93,11 +102,12 @@ export class RepartidorPedidosController {
   @ApiConflictResponse({
     description: 'Ya está En Camino o no está en estado Asignado',
   })
-  aceptar(
-    @Param('id', ParseUUIDPipe) id: string,
+  async aceptar(
+    @Param('id', ParseIntPipe) id: number,
     @CurrentSupabaseUser() jwt: SupabaseJwtPayload,
   ) {
-    return this.aceptarPedido.execute(id, jwt.sub);
+    const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
+    return this.aceptarPedido.execute(id, idRepartidor);
   }
 
   @Post(':id/confirmar-entrega')
@@ -106,14 +116,14 @@ export class RepartidorPedidosController {
     summary: 'Confirmar entrega (formulario repartidor)',
     description:
       'Formulario de cierre: `idResultadoEntrega` (catálogo), cobro en `pedidos`, observaciones y fotos en **seguimiento** / **descripcion_seguimiento** (mismo bucket **evidencias** que el alta). ' +
-      'Éxito o novedades → estado pedido **Entregado** (`aafaed49-…`). No entregado → nuevo paso en seguimiento, sigue **En Camino**. ' +
+      `Éxito o novedades → estado pedido **Entregado** (id **${ESTADO_PEDIDO_ENTREGADO_ID}**). No entregado → nuevo paso en seguimiento, sigue **En Camino**. ` +
       'Antes: **GET /catalogo/resultados-entrega**.',
   })
   @ApiParam({
     name: 'id',
-    format: 'uuid',
+    type: 'integer',
     description: '`pedidos.id_pedido`',
-    example: '7f6ca7e7-c7b0-48ef-94aa-805efeec41b9',
+    example: SWAGGER_EJEMPLO_ID_PEDIDO,
   })
   @ApiBody({
     type: ConfirmarEntregaRepartidorBodyDto,
@@ -146,11 +156,12 @@ export class RepartidorPedidosController {
   @ApiNotFoundResponse({ description: 'Pedido no existe' })
   @ApiForbiddenResponse({ description: 'Pedido de otro repartidor' })
   @ApiConflictResponse({ description: 'No está En Camino o ya Entregado' })
-  confirmarEntregaPedido(
-    @Param('id', ParseUUIDPipe) id: string,
+  async confirmarEntregaPedido(
+    @Param('id', ParseIntPipe) id: number,
     @Body() body: ConfirmarEntregaRepartidorBodyDto,
     @CurrentSupabaseUser() jwt: SupabaseJwtPayload,
   ) {
-    return this.confirmarEntrega.execute(id, jwt.sub, body);
+    const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
+    return this.confirmarEntrega.execute(id, idRepartidor, body);
   }
 }

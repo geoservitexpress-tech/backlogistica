@@ -19,7 +19,7 @@ export class AsignacionRepartidoresCron {
   ) {}
 
   // Pruebas: cada 5 min. (0 */5 * * * *) Producción: usar `0 30 23 * * *` (23:30 diario).
-  @Cron('0 */1 * * * *', {
+  @Cron('0 */9 * * * *', {
     timeZone: 'America/Bogota',
     name: 'asignar-repartidores-nocturno',
   })

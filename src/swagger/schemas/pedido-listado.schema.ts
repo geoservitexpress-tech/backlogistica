@@ -2,8 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** Esquema OpenAPI del JSON de `GET /pedidos` (relaciones resueltas solo como texto). */
 export class PedidoListadoSchema {
-  @ApiProperty({ format: 'uuid' })
-  idPedido!: string;
+  @ApiProperty({ type: 'integer', example: 1, description: '`pedidos.id_pedido`' })
+  idPedido!: number;
 
   @ApiProperty({ example: 'GUA-001-2024' })
   numGuia!: string;
@@ -48,6 +48,21 @@ export class PedidoListadoSchema {
     example: 'Bogotá, Bogotá D.C., Calle 11b # 15-40, Torre norte, apto 502',
   })
   direccion!: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    example: 1,
+    description: '`direccion.fk_zona` (localidad Bogotá; null si no aplica)',
+  })
+  idZonaBogota!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'Usaquén',
+    description: 'Nombre de la localidad en `zona_bogota`',
+  })
+  zonaBogota!: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   destinatarioNombre!: string | null;

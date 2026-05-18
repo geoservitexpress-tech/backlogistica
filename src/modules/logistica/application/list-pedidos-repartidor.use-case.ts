@@ -7,7 +7,7 @@ export class ListPedidosRepartidorUseCase {
   constructor(@Inject(PEDIDO_READ) private readonly pedidos: PedidoReadPort) {}
 
   /** Pedidos con `fk_usuario_repartidor` = repartidor autenticado (`sub` del JWT). */
-  execute(idRepartidor: string) {
+  execute(idRepartidor: number) {
     return this.pedidos.listPedidos({ idRepartidor });
   }
 }

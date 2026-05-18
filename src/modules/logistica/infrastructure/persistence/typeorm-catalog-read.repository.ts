@@ -11,6 +11,7 @@ import { Rol } from '../../domain/entities/rol.entity';
 import { TipoDocumento } from '../../domain/entities/tipo-documento.entity';
 import { TipoPedido } from '../../domain/entities/tipo-pedido.entity';
 import { TipoVia } from '../../domain/entities/tipo-via.entity';
+import { ZonaBogota } from '../../domain/entities/zona-bogota.entity';
 import { CiudadOrmEntity } from './ciudad.orm-entity';
 import { DepartamentoOrmEntity } from './departamento.orm-entity';
 import { EstadoPedidoOrmEntity } from './estado-pedido.orm-entity';
@@ -20,6 +21,7 @@ import { RolOrmEntity } from './rol.orm-entity';
 import { TipoDocumentoOrmEntity } from './tipo-documento.orm-entity';
 import { TipoPedidoOrmEntity } from './tipo-pedido.orm-entity';
 import { TipoViaOrmEntity } from './tipo-via.orm-entity';
+import { ZonaBogotaOrmEntity } from './zona-bogota.orm-entity';
 
 @Injectable()
 export class TypeOrmCatalogReadRepository implements CatalogReadPort {
@@ -42,6 +44,8 @@ export class TypeOrmCatalogReadRepository implements CatalogReadPort {
     private readonly tipoDocumentoRepo: Repository<TipoDocumentoOrmEntity>,
     @InjectRepository(TipoViaOrmEntity)
     private readonly tipoViaRepo: Repository<TipoViaOrmEntity>,
+    @InjectRepository(ZonaBogotaOrmEntity)
+    private readonly zonaBogotaRepo: Repository<ZonaBogotaOrmEntity>,
   ) {}
 
   async listPaises(): Promise<Pais[]> {
@@ -87,5 +91,10 @@ export class TypeOrmCatalogReadRepository implements CatalogReadPort {
   async listTiposVia(): Promise<TipoVia[]> {
     const rows = await this.tipoViaRepo.find({ order: { nombre: 'ASC' } });
     return rows.map((r) => new TipoVia(r.idTipoVia, r.nombre));
+  }
+
+  async listZonasBogota(): Promise<ZonaBogota[]> {
+    const rows = await this.zonaBogotaRepo.find({ order: { nombre: 'ASC' } });
+    return rows.map((r) => new ZonaBogota(r.idZona, r.nombre));
   }
 }

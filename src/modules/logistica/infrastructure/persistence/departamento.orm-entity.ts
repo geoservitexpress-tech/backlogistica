@@ -3,8 +3,8 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 /** Catálogo de departamento (sin FK a `pais`: el país va en `direccion.fk_pais`). */
 @Entity({ name: 'departamento' })
 export class DepartamentoOrmEntity {
-  @PrimaryColumn({ name: 'id_departamento', type: 'uuid' })
-  idDepartamento!: string;
+  @PrimaryColumn({ name: 'id_departamento', type: 'int' })
+  idDepartamento!: number;
 
   @Column({ type: 'varchar', length: 160 })
   nombre!: string;

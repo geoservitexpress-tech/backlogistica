@@ -27,7 +27,10 @@ function etiquetaDireccion(d: DireccionOrmEntity): string {
   const obsCorta =
     obs && obs.length > 100 ? `${obs.slice(0, 97).replace(/\s+$/, '')}…` : (obs ?? null);
   const viaLine = lineaNomenclaturaColombiana(d);
-  const partes = [d.ciudad?.nombre, d.departamento?.nombre, viaLine, obsCorta].filter(Boolean);
+  const localidad = d.zonaBogota?.nombre;
+  const partes = [localidad, d.ciudad?.nombre, d.departamento?.nombre, viaLine, obsCorta].filter(
+    Boolean,
+  );
   return partes.join(', ');
 }
 
@@ -46,6 +49,8 @@ export function pedidoOrmToListado(row: PedidoOrmEntity): PedidoListado {
     usuarioRepartidor: row.usuarioRepartidor ? nombreUsuario(row.usuarioRepartidor) : null,
     paquete: row.paquete.nombre,
     direccion: etiquetaDireccion(row.direccion),
+    idZonaBogota: row.direccion.zonaBogota?.idZona ?? null,
+    zonaBogota: row.direccion.zonaBogota?.nombre ?? null,
     destinatarioNombre: row.destinatario?.nombre ?? null,
     destinatarioTelefono: row.destinatario?.telefono ?? null,
     fragil: row.fragil ?? false,

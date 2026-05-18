@@ -6,7 +6,7 @@ import { PEDIDO_READ } from '../pedidos.tokens';
 export class GetPedidoByIdUseCase {
   constructor(@Inject(PEDIDO_READ) private readonly pedidos: PedidoReadPort) {}
 
-  async execute(id: string) {
+  async execute(id: number) {
     const found = await this.pedidos.findPedidoById(id);
     if (!found) {
       throw new NotFoundException(`Pedido ${id} no encontrado`);

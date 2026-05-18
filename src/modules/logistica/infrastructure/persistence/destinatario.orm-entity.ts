@@ -1,9 +1,9 @@
-import { Column, Entity, PrimaryColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'destinatario' })
 export class DestinatarioOrmEntity {
-  @PrimaryColumn({ name: 'id_destinatario', type: 'uuid' })
-  idDestinatario!: string;
+  @PrimaryGeneratedColumn({ name: 'id_destinatario' })
+  idDestinatario!: number;
 
   @Column({ type: 'varchar', length: 200 })
   nombre!: string;

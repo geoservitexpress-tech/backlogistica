@@ -1,13 +1,14 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { CiudadOrmEntity } from './ciudad.orm-entity';
 import { DepartamentoOrmEntity } from './departamento.orm-entity';
 import { PaisOrmEntity } from './pais.orm-entity';
 import { TipoViaOrmEntity } from './tipo-via.orm-entity';
+import { ZonaBogotaOrmEntity } from './zona-bogota.orm-entity';
 
 @Entity({ name: 'direccion' })
 export class DireccionOrmEntity {
-  @PrimaryColumn({ name: 'id_direccion', type: 'uuid' })
-  idDireccion!: string;
+  @PrimaryGeneratedColumn({ name: 'id_direccion' })
+  idDireccion!: number;
 
   @ManyToOne(() => TipoViaOrmEntity, { nullable: false })
   @JoinColumn({ name: 'fk_tipo_via' })
@@ -24,6 +25,11 @@ export class DireccionOrmEntity {
   @ManyToOne(() => CiudadOrmEntity, { nullable: false })
   @JoinColumn({ name: 'fk_ciudad' })
   ciudad!: CiudadOrmEntity;
+
+  /** Localidad de Bogotá D.C. (`zona_bogota`); solo cuando `fk_ciudad` = Bogotá. */
+  @ManyToOne(() => ZonaBogotaOrmEntity, { nullable: true })
+  @JoinColumn({ name: 'fk_zona' })
+  zonaBogota!: ZonaBogotaOrmEntity | null;
 
   /** En BD la columna es `observaciones` (apto, oficina, portería…). */
   @Column({ name: 'observaciones', type: 'text', nullable: true })

@@ -28,7 +28,7 @@ export class RepartidorAceptarPedidoUseCase {
     private readonly pedidoRepo: Repository<PedidoOrmEntity>,
   ) {}
 
-  async execute(idPedido: string, idRepartidor: string) {
+  async execute(idPedido: number, idRepartidor: number) {
     const idAsignado = await this.variables.getInt(
       VAR.REPARTIDOR_PEDIDO_ESTADO_ASIGNADO_ID,
       ESTADO_PEDIDO_ASIGNADO_ID,

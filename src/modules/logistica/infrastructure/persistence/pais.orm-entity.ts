@@ -2,8 +2,8 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'pais' })
 export class PaisOrmEntity {
-  @PrimaryColumn({ name: 'id_pais', type: 'uuid' })
-  idPais!: string;
+  @PrimaryColumn({ name: 'id_pais', type: 'int' })
+  idPais!: number;
 
   @Column({ type: 'varchar', length: 160 })
   nombre!: string;

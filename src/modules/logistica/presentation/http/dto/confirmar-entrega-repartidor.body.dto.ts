@@ -7,7 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
+  IsInt,
   MaxLength,
   Min,
   MinLength,
@@ -20,13 +20,15 @@ import { EJEMPLO_FOTO_PAQUETE_DATA_URL } from '../ejemplo-foto-paquete.data-url'
 /** POST `/repartidor/pedidos/:id/confirmar-entrega` — cierre de ruta en `seguimiento` + cobro en `pedidos`. */
 export class ConfirmarEntregaRepartidorBodyDto {
   @ApiProperty({
-    format: 'uuid',
+    type: 'integer',
     description:
-      '`resultado_entrega.id_resultado_entrega`. Ver **GET /catalogo/resultados-entrega**.',
+      '`resultado_entrega.id_resultado_entrega` — **1** = Exitoso. Ver **GET /catalogo/resultados-entrega**.',
     example: RESULTADO_ENTREGA_EXITO_ID,
   })
-  @IsUUID()
-  idResultadoEntrega!: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idResultadoEntrega!: number;
 
   @ApiProperty({
     description: 'El envío ya fue pagado por el remitente (no se cobra en destino).',
@@ -37,14 +39,16 @@ export class ConfirmarEntregaRepartidorBodyDto {
   pagadoPorRemitente!: boolean;
 
   @ApiPropertyOptional({
-    format: 'uuid',
+    type: 'integer',
     description:
-      '`metodo_pago.id_metodo_pago` (Efectivo / Transferencia / Datafono). Requerido si `pagadoPorRemitente` = false y `valorRecaudado` > 0. Ver **GET /catalogo/metodos-pago**.',
+      '`metodo_pago.id_metodo_pago` — **1** = Efectivo. Requerido si `pagadoPorRemitente` = false y `valorRecaudado` > 0.',
     example: METODO_PAGO_EFECTIVO_ID,
   })
   @ValidateIf((o: ConfirmarEntregaRepartidorBodyDto) => !o.pagadoPorRemitente && o.valorRecaudado > 0)
-  @IsUUID()
-  idMetodoPago?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idMetodoPago?: number;
 
   @ApiProperty({
     description: 'Valor cobrado en destino; se persiste en `pedidos.valor_recaudado`.',

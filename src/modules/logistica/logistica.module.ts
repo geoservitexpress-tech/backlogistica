@@ -16,6 +16,7 @@ import { ListRolesUseCase } from './application/list-roles.use-case';
 import { ListTiposDocumentoUseCase } from './application/list-tipos-documento.use-case';
 import { ListTiposPedidoUseCase } from './application/list-tipos-pedido.use-case';
 import { ListTiposViaUseCase } from './application/list-tipos-via.use-case';
+import { ListZonasBogotaUseCase } from './application/list-zonas-bogota.use-case';
 import { ListVariablesUseCase } from './application/list-variables.use-case';
 import { CATALOG_READ } from './catalog.tokens';
 import { TypeOrmCatalogReadRepository } from './infrastructure/persistence/typeorm-catalog-read.repository';
@@ -57,6 +58,7 @@ import { RepartidorPedidosController } from './presentation/http/repartidor-pedi
     ListMetodosRecepcionUseCase,
     ListTiposDocumentoUseCase,
     ListTiposViaUseCase,
+    ListZonasBogotaUseCase,
     ListVariablesUseCase,
     ListPedidosUseCase,
     GetPedidoByIdUseCase,

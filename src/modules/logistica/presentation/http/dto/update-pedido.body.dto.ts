@@ -4,23 +4,27 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
-  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Matches,
   MaxLength,
   Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { PEDIDO_TIPO_OPERACION } from '../../../domain/pedido-tipo-operacion';
+import { CIUDAD_ID_BOGOTA_DC, ZONA_BOGOTA_EJEMPLO_ID } from '../../../logistica-geografia.constants';
+import { ESTADO_PEDIDO_ASIGNADO_ID } from '../../../logistica-pedido-estados.constants';
+import { METODO_RECEPCION_ID_ENTREGA } from '../../../logistica-metodo-recepcion.constants';
 
 /** PATCH `/pedidos/:id` — solo los campos enviados se actualizan. */
 export class UpdatePedidoBodyDto {
-  @ApiPropertyOptional({ type: 'integer', description: '`estado_pedido.id_estado_pedido`' })
+  @ApiPropertyOptional({
+    type: 'integer',
+    example: ESTADO_PEDIDO_ASIGNADO_ID,
+    description: '`estado_pedido.id_estado_pedido` — **2** = Asignado.',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -28,29 +32,39 @@ export class UpdatePedidoBodyDto {
   idEstadoPedido?: number;
 
   @ApiPropertyOptional({
+    type: 'integer',
     nullable: true,
-    format: 'uuid',
     description: '`usuarios.id_usuario`; use `null` para quitar el recolector',
   })
   @IsOptional()
   @ValidateIf((_, v) => v !== undefined && v !== null)
-  @IsUUID()
-  idUsuarioRecolector?: string | null;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idUsuarioRecolector?: number | null;
 
   @ApiPropertyOptional({
+    type: 'integer',
     nullable: true,
-    format: 'uuid',
     description: '`usuarios.id_usuario`; use `null` para quitar el repartidor',
   })
   @IsOptional()
   @ValidateIf((_, v) => v !== undefined && v !== null)
-  @IsUUID()
-  idUsuarioRepartidor?: string | null;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idUsuarioRepartidor?: number | null;
 
-  @ApiPropertyOptional({ format: 'uuid', description: '`metodo_recepcion.id_metodo_recepcion`' })
+  @ApiPropertyOptional({
+    type: 'integer',
+    example: METODO_RECEPCION_ID_ENTREGA,
+    description: '`metodo_recepcion.id_metodo_recepcion` — **2** = Entrega.',
+  })
   @IsOptional()
-  @IsUUID()
-  idMetodoRecepcion?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idMetodoRecepcion?: number;
 
   @ApiPropertyOptional({
     type: 'integer',
@@ -61,14 +75,6 @@ export class UpdatePedidoBodyDto {
   @IsInt()
   @Min(1)
   idTipoPedido?: number;
-
-  @ApiPropertyOptional({
-    enum: PEDIDO_TIPO_OPERACION,
-    description: 'Cambia `metodo_recepcion` (Entrega / Recogida).',
-  })
-  @IsOptional()
-  @IsIn([...PEDIDO_TIPO_OPERACION])
-  tipoOperacion?: (typeof PEDIDO_TIPO_OPERACION)[number];
 
   @ApiPropertyOptional({ description: 'Actualiza `pedidos.valor_declarado` y `paquete.precio`' })
   @IsOptional()
@@ -150,15 +156,34 @@ export class UpdatePedidoBodyDto {
   @Min(1)
   idCiudad?: number;
 
-  @ApiPropertyOptional({ format: 'uuid' })
+  @ApiPropertyOptional({ type: 'integer', description: '`departamento.id_departamento`' })
   @IsOptional()
-  @IsUUID()
-  idDepartamento?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idDepartamento?: number;
 
-  @ApiPropertyOptional({ format: 'uuid' })
+  @ApiPropertyOptional({ type: 'integer', description: '`pais.id_pais`' })
   @IsOptional()
-  @IsUUID()
-  idPais?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idPais?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    example: ZONA_BOGOTA_EJEMPLO_ID,
+    nullable: true,
+    description:
+      'Localidad Bogotá (`direccion.fk_zona`). Solo si la dirección queda en `idCiudad` = **149**; `null` la quita. ' +
+      'No enviar si la ciudad no es Bogotá.',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== undefined && v !== null)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idZonaBogota?: number | null;
 
   @ApiPropertyOptional({ description: '`direccion.observaciones`; puede ir solo (sin el bloque de dirección completa).' })
   @IsOptional()

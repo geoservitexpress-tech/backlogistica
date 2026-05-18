@@ -4,32 +4,27 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
-  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Matches,
   MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
-import { PEDIDO_TIPO_OPERACION } from '../../../domain/pedido-tipo-operacion';
+import {
+  CIUDAD_ID_BOGOTA_DC,
+  DEPARTAMENTO_ID_BOGOTA,
+  PAIS_ID_COLOMBIA,
+  ZONA_BOGOTA_EJEMPLO_ID,
+} from '../../../logistica-geografia.constants';
+import { METODO_RECEPCION_ID_ENTREGA } from '../../../logistica-metodo-recepcion.constants';
 import { TIPO_PEDIDO_ID_NORMAL } from '../../../logistica-tipo-pedido.constants';
 import { EJEMPLO_FOTO_PAQUETE_DATA_URL } from '../ejemplo-foto-paquete.data-url';
 
-/** Cuerpo de `POST /pedidos` — solicitante con rol Cliente o Administrador. */
+/** Cuerpo de `POST /pedidos` — solicitante = usuario del JWT (Cliente o Administrador). */
 export class CreatePedidoBodyDto {
-  @ApiProperty({
-    format: 'uuid',
-    example: 'b0829465-0779-4366-a29a-6feb6c88cbba',
-    description:
-      '`usuarios.id_usuario` del solicitante; en `usuario_rol` debe tener rol **Cliente** o **Administrador** (`rol.nombre`, sin importar mayúsculas).',
-  })
-  @IsUUID()
-  idUsuario!: string;
-
   @ApiProperty({
     type: 'integer',
     example: TIPO_PEDIDO_ID_NORMAL,
@@ -49,13 +44,15 @@ export class CreatePedidoBodyDto {
   fechaEntrega!: string;
 
   @ApiProperty({
-    enum: PEDIDO_TIPO_OPERACION,
+    type: 'integer',
+    example: METODO_RECEPCION_ID_ENTREGA,
     description:
-      '**DESPACHO**: entrega en dirección (`metodo_recepcion` ≈ Entrega). **RECOLECCION**: recogida (`metodo_recepcion` ≈ Recogida).',
-    example: 'DESPACHO',
+      '`metodo_recepcion.id_metodo_recepcion` — **1** = Recogida, **2** = Entrega. Ver **GET /catalogo/metodos-recepcion**.',
   })
-  @IsIn([...PEDIDO_TIPO_OPERACION])
-  tipoOperacion!: (typeof PEDIDO_TIPO_OPERACION)[number];
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idMetodoRecepcion!: number;
 
   @ApiProperty({ example: 'María Pérez' })
   @IsString()
@@ -103,8 +100,8 @@ export class CreatePedidoBodyDto {
 
   @ApiProperty({
     type: 'integer',
-    example: 1,
-    description: '`ciudad.id_ciudad` numérico del catálogo (`GET /catalogo/ciudades`).',
+    example: CIUDAD_ID_BOGOTA_DC,
+    description: '`ciudad.id_ciudad` — **149** = Bogotá D.C. (`GET /catalogo/ciudades`).',
   })
   @Type(() => Number)
   @IsInt()
@@ -112,22 +109,38 @@ export class CreatePedidoBodyDto {
   idCiudad!: number;
 
   @ApiProperty({
-    format: 'uuid',
-    example: '89f50dc7-12f4-4c39-b142-0e5bff7841a3',
+    type: 'integer',
+    example: DEPARTAMENTO_ID_BOGOTA,
     description:
-      '`departamento.id_departamento` para `direccion.fk_departamento` (la tabla `ciudad` no tiene FK al departamento).',
+      '`departamento.id_departamento` — **3** = Bogotá (seed). Ver **GET /catalogo/departamentos**.',
   })
-  @IsUUID()
-  idDepartamento!: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idDepartamento!: number;
 
   @ApiProperty({
-    format: 'uuid',
-    example: '4d26c814-c04e-4e53-9929-d42a86a5eafd',
-    description:
-      '`pais.id_pais` para `direccion.fk_pais` (el departamento no tiene FK a país en BD). Ejemplo: Colombia.',
+    type: 'integer',
+    example: PAIS_ID_COLOMBIA,
+    description: '`pais.id_pais` — **1** = Colombia. Ver **GET /catalogo/paises**.',
   })
-  @IsUUID()
-  idPais!: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idPais!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    example: ZONA_BOGOTA_EJEMPLO_ID,
+    description:
+      'Localidad de Bogotá (`zona_bogota.id_zona` → `direccion.fk_zona`). **Solo** si `idCiudad` = **149** (Bogotá D.C.). ' +
+      'Ver **GET /catalogo/zonas-bogota**. No enviar para otras ciudades.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idZonaBogota?: number;
 
   @ApiPropertyOptional({
     example: 'Torre norte, apto 502',

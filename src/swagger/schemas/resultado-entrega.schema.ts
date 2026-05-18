@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ResultadoEntregaCatalogoSchema {
-  @ApiProperty({ format: 'uuid' })
-  id!: string;
+  @ApiProperty({ type: 'integer', example: 1, description: '`resultado_entrega.id_resultado_entrega`' })
+  id!: number;
 
   @ApiProperty({ example: 'Entregado con éxito' })
   nombre!: string;

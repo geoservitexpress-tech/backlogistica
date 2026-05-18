@@ -38,7 +38,7 @@ export class AuthController {
     summary: 'Registro',
     description:
       'Crea usuario en **Supabase Auth** (`auth.users`) y filas en **`usuarios`** + **`usuario_rol`**. ' +
-      '`id_usuario` en Postgres coincide con el UUID de Supabase (`sub` del JWT). ' +
+      '`id_usuario` en Postgres es **entero** (1, 2, …); el UUID de Auth va en `auth_user_id` (`sub` del JWT). ' +
       '**`idRol`** y **`fkTipoDocumento`** son enteros del catálogo (`GET /catalogo/roles`, `GET /catalogo/tipos-documento`).',
   })
   @ApiBody({

@@ -10,7 +10,7 @@ function patchTieneCampos(patch: UpdatePedidoInput): boolean {
 export class UpdatePedidoUseCase {
   constructor(@Inject(PEDIDO_WRITE) private readonly write: PedidoWritePort) {}
 
-  execute(idPedido: string, body: UpdatePedidoInput) {
+  execute(idPedido: number, body: UpdatePedidoInput) {
     if (!patchTieneCampos(body)) {
       throw new BadRequestException('Envíe al menos un campo para actualizar el pedido.');
     }

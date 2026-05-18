@@ -1,10 +1,14 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { TipoDocumentoOrmEntity } from './tipo-documento.orm-entity';
 
 @Entity({ name: 'usuarios' })
 export class UsuarioOrmEntity {
-  @PrimaryColumn({ name: 'id_usuario', type: 'uuid' })
-  idUsuario!: string;
+  @PrimaryGeneratedColumn({ name: 'id_usuario' })
+  idUsuario!: number;
+
+  /** UUID de Supabase Auth (`sub` del JWT). */
+  @Column({ name: 'auth_user_id', type: 'uuid', unique: true })
+  authUserId!: string;
 
   @Column({ type: 'varchar', length: 120 })
   nombres!: string;

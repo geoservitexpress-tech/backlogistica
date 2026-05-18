@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -98,7 +97,7 @@ export class RepartidorConfirmarEntregaUseCase {
 
   private validarCobro(body: ConfirmarEntregaRepartidorBodyDto): void {
     if (body.pagadoPorRemitente) return;
-    if (body.valorRecaudado > 0 && !body.idMetodoPago?.trim()) {
+    if (body.valorRecaudado > 0 && body.idMetodoPago == null) {
       throw new BadRequestException(
         'Indique idMetodoPago (catálogo metodo_pago) cuando hay valor recaudado. Ver GET /catalogo/metodos-pago.',
       );
@@ -117,17 +116,17 @@ export class RepartidorConfirmarEntregaUseCase {
   }
 
   async execute(
-    idPedido: string,
-    idRepartidor: string,
+    idPedido: number,
+    idRepartidor: number,
     body: ConfirmarEntregaRepartidorBodyDto,
   ) {
     await this.assertTablasSeguimiento();
     this.validarCobro(body);
 
-    let idMetodoPago: string | null = null;
-    if (!body.pagadoPorRemitente && body.idMetodoPago?.trim()) {
+    let idMetodoPago: number | null = null;
+    if (!body.pagadoPorRemitente && body.idMetodoPago != null) {
       const mp = await this.metodoPagoRepo.findOne({
-        where: { idMetodoPago: body.idMetodoPago.trim() },
+        where: { idMetodoPago: body.idMetodoPago },
       });
       if (!mp) {
         throw new BadRequestException(
@@ -190,7 +189,6 @@ export class RepartidorConfirmarEntregaUseCase {
 
     await this.dataSource.transaction(async (manager) => {
       const seguimiento = manager.create(SeguimientoOrmEntity, {
-        idSeguimiento: randomUUID(),
         pedido: { idPedido } as PedidoOrmEntity,
         estadoPedido: { idEstadoPedido: idEstadoPaso },
         fecha: new Date(),
@@ -199,7 +197,6 @@ export class RepartidorConfirmarEntregaUseCase {
 
       if (fotosUrls.length === 0) {
         const detalle = manager.create(DescripcionSeguimientoOrmEntity, {
-          idDescripcion: randomUUID(),
           seguimiento,
           estadoPedido: { idEstadoPedido: idEstadoPaso },
           descripcion: resultado.nombre,
@@ -212,7 +209,6 @@ export class RepartidorConfirmarEntregaUseCase {
       } else {
         for (let i = 0; i < fotosUrls.length; i++) {
           const detalle = manager.create(DescripcionSeguimientoOrmEntity, {
-            idDescripcion: randomUUID(),
             seguimiento,
             estadoPedido: { idEstadoPedido: idEstadoPaso },
             descripcion: i === 0 ? resultado.nombre : `${resultado.nombre} (evidencia ${i + 1})`,
@@ -227,7 +223,7 @@ export class RepartidorConfirmarEntregaUseCase {
 
       const patchPedido: {
         pagadoPorRemitente: boolean;
-        fkMetodoPago: string | null;
+        fkMetodoPago: number | null;
         valorRecaudado: number;
         precio?: number;
       } = {
@@ -241,12 +237,12 @@ export class RepartidorConfirmarEntregaUseCase {
 
       await manager.query(
         `update pedidos set
-           fk_estado_pedido = $2::uuid,
+           fk_estado_pedido = $2::int,
            pagado_por_remitente = $3,
-           fk_metodo_pago = $4::uuid,
+           fk_metodo_pago = $4::int,
            valor_recaudado = $5,
            precio = coalesce($6::numeric, precio)
-         where id_pedido = $1::uuid`,
+         where id_pedido = $1::int`,
         [
           idPedido,
           idEstadoPaso,

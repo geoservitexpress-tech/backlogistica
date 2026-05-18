@@ -31,7 +31,11 @@ export class RepartidorRoleGuard implements CanActivate {
     });
 
     const rows = (await this.dataSource.query(
-      `select 1 from usuario_rol where id_usuario = $1::uuid and id_rol = $2::int limit 1`,
+      `select 1
+       from usuario_rol ur
+       inner join usuarios u on u.id_usuario = ur.id_usuario
+       where u.auth_user_id = $1::uuid and ur.id_rol = $2::int
+       limit 1`,
       [sub, idRol],
     )) as unknown[];
 

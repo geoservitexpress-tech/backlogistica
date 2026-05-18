@@ -1,5 +1,6 @@
 -- Tipos de documento para registro (`usuarios.fk_tipo_documento`).
 -- Ejecutar después de 01-schema-numeric-ids.sql
+-- En POST /auth/register use idTipoDocumento entero (ej. 1 = CC), no UUID.
 
 INSERT INTO public.tipo_documento (nombre, abreviacion) VALUES
   ('Cédula de ciudadanía', 'CC'),

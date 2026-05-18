@@ -1,12 +1,12 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { EstadoPedidoOrmEntity } from './estado-pedido.orm-entity';
 import { ResultadoEntregaOrmEntity } from './resultado-entrega.orm-entity';
 import { SeguimientoOrmEntity } from './seguimiento.orm-entity';
 
 @Entity({ name: 'descripcion_seguimiento' })
 export class DescripcionSeguimientoOrmEntity {
-  @PrimaryColumn({ name: 'id_descripcion', type: 'uuid' })
-  idDescripcion!: string;
+  @PrimaryGeneratedColumn({ name: 'id_descripcion' })
+  idDescripcion!: number;
 
   @ManyToOne(() => SeguimientoOrmEntity, { nullable: false })
   @JoinColumn({ name: 'fk_seguimiento' })

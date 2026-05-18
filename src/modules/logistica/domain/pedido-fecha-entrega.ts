@@ -10,7 +10,20 @@ export function parseFechaEntregaYyyyMmDd(value: string): Date {
   return new Date(Date.UTC(y, mo - 1, d));
 }
 
-export function formatFechaEntregaYyyyMmDd(date: Date): string {
+/** Postgres `date` suele llegar como `YYYY-MM-DD` (string), no como `Date`. */
+export function formatFechaEntregaYyyyMmDd(date: Date | string): string {
+  if (typeof date === 'string') {
+    const isoDay = date.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoDay) return isoDay[1]!;
+    const parsed = new Date(date);
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatFechaEntregaYyyyMmDd(parsed);
+    }
+    throw new Error(`fecha_entrega inválida: ${date}`);
+  }
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new Error('fecha_entrega inválida');
+  }
   const y = date.getUTCFullYear();
   const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
   const d = String(date.getUTCDate()).padStart(2, '0');

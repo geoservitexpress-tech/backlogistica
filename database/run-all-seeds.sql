@@ -1,0 +1,32 @@
+-- Orden de ejecución en Supabase SQL Editor (base nueva o tras 00-drop + 01-schema).
+-- NO ejecutar migraciones 003-* si ya aplicó 01-schema-numeric-ids.sql con usuarios enteros.
+--
+-- ┌─────────────────────────────────────────────────────────────────────────┐
+-- │  Usuarios NO van en semillas: POST /auth/register crea la fila con     │
+-- │  id_usuario = 1, 2, … y auth_user_id = UUID de Supabase Auth.           │
+-- │  FK en pedidos / variable ASIGNACION_REPARTIDORES_HUBS → id entero.     │
+-- └─────────────────────────────────────────────────────────────────────────┘
+--
+-- 1. 00-drop-all-tables.sql          (solo si recrea desde cero)
+-- 2. 01-schema-numeric-ids.sql
+-- 3. 02-seed-pais.sql
+-- 4. 03-seed-departamentos.sql
+-- 5. 04-seed-ciudades.sql
+-- 6. 05-seed-tipos-via.sql
+-- 7. 06-seed-estados-pedido.sql
+-- 8. 07-seed-metodos-pago.sql
+-- 9. 08-seed-metodos-recepcion.sql
+-- 10. 09-seed-paquetes.sql
+-- 11. 10-seed-resultado-entrega.sql
+-- 12. 11-seed-rol.sql
+-- 13. 12-seed-tipo-documento.sql
+-- 14. 13-seed-tipo-pedido.sql
+-- 15. 14-seed-zona-bogota.sql
+-- 16. 15-seed-variables.sql          (idempotente: ON CONFLICT actualiza descripciones)
+-- 17. optional-factura.sql           (si usa facturación)
+--
+-- Luego en la app:
+--   • Borrar usuario en Supabase Auth si re-registra el mismo correo
+--   • POST /auth/register  →  idUsuario 1
+--   • (opcional) INSERT usuario_rol para repartidor: (2, 2) si el repartidor es el usuario 2
+--   • (opcional) UPDATE variable ASIGNACION_REPARTIDORES_HUBS con idUsuario entero

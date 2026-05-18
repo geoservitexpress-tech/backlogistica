@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
   Inject,
@@ -10,7 +10,6 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 import type { PedidoListado } from '../../domain/read-models/pedido-listado';
 import { parseFechaEntregaYyyyMmDd } from '../../domain/pedido-fecha-entrega';
-import type { PedidoTipoOperacion } from '../../domain/pedido-tipo-operacion';
 import type { PedidoReadPort } from '../../domain/ports/pedido-read.port';
 import type {
   CreatePedidoFormInput,
@@ -24,7 +23,9 @@ import { CiudadOrmEntity } from './ciudad.orm-entity';
 import { DepartamentoOrmEntity } from './departamento.orm-entity';
 import { PaisOrmEntity } from './pais.orm-entity';
 import { DestinatarioOrmEntity } from './destinatario.orm-entity';
+import { validarIdZonaBogotaParaCiudad, esCiudadBogotaDc } from '../../application/validar-zona-bogota';
 import { DireccionOrmEntity } from './direccion.orm-entity';
+import { ZonaBogotaOrmEntity } from './zona-bogota.orm-entity';
 import { EstadoPedidoOrmEntity } from './estado-pedido.orm-entity';
 import { MetodoRecepcionOrmEntity } from './metodo-recepcion.orm-entity';
 import { PaqueteOrmEntity } from './paquete.orm-entity';
@@ -80,18 +81,20 @@ async function cargarGeografiaDireccion(
     throw new BadRequestException(`Ciudad no encontrada por id_ciudad=${input.idCiudad}`);
   }
 
-  const idDep = input.idDepartamento.trim();
   const departamento = await manager.getRepository(DepartamentoOrmEntity).findOne({
-    where: { idDepartamento: idDep },
+    where: { idDepartamento: input.idDepartamento },
   });
   if (!departamento) {
-    throw new BadRequestException(`Departamento no encontrado por id_departamento=${idDep}`);
+    throw new BadRequestException(
+      `Departamento no encontrado por id_departamento=${input.idDepartamento}`,
+    );
   }
 
-  const idP = input.idPais.trim();
-  const pais = await manager.getRepository(PaisOrmEntity).findOne({ where: { idPais: idP } });
+  const pais = await manager.getRepository(PaisOrmEntity).findOne({
+    where: { idPais: input.idPais },
+  });
   if (!pais) {
-    throw new BadRequestException(`País no encontrado por id_pais=${idP}`);
+    throw new BadRequestException(`País no encontrado por id_pais=${input.idPais}`);
   }
   return { ciudad, departamento, pais };
 }
@@ -99,19 +102,19 @@ async function cargarGeografiaDireccion(
 async function cargarGeografiaPorIds(
   manager: EntityManager,
   idCiudad: number,
-  idDepartamento: string,
-  idPais: string,
+  idDepartamento: number,
+  idPais: number,
 ): Promise<{ ciudad: CiudadOrmEntity; departamento: DepartamentoOrmEntity; pais: PaisOrmEntity }> {
   const ciudad = await manager.getRepository(CiudadOrmEntity).findOne({ where: { idCiudad } });
   if (!ciudad) throw new BadRequestException(`Ciudad no encontrada por id_ciudad=${idCiudad}`);
-  const idDep = idDepartamento.trim();
   const departamento = await manager.getRepository(DepartamentoOrmEntity).findOne({
-    where: { idDepartamento: idDep },
+    where: { idDepartamento },
   });
-  if (!departamento) throw new BadRequestException(`Departamento no encontrado por id_departamento=${idDep}`);
-  const idP = idPais.trim();
-  const pais = await manager.getRepository(PaisOrmEntity).findOne({ where: { idPais: idP } });
-  if (!pais) throw new BadRequestException(`País no encontrado por id_pais=${idP}`);
+  if (!departamento) {
+    throw new BadRequestException(`Departamento no encontrado por id_departamento=${idDepartamento}`);
+  }
+  const pais = await manager.getRepository(PaisOrmEntity).findOne({ where: { idPais } });
+  if (!pais) throw new BadRequestException(`País no encontrado por id_pais=${idPais}`);
   return { ciudad, departamento, pais };
 }
 
@@ -153,29 +156,42 @@ async function resolverTipoPedidoPorId(
   return tp;
 }
 
-async function resolverMetodoRecepcionPorOperacion(
+async function resolverZonaBogotaOpcional(
   manager: EntityManager,
-  operacion: PedidoTipoOperacion,
+  idCiudad: number,
+  idZonaBogota?: number | null,
+): Promise<ZonaBogotaOrmEntity | null> {
+  validarIdZonaBogotaParaCiudad(idCiudad, idZonaBogota ?? undefined);
+  if (!esCiudadBogotaDc(idCiudad)) {
+    return null;
+  }
+  if (idZonaBogota == null) {
+    return null;
+  }
+  const zona = await manager.getRepository(ZonaBogotaOrmEntity).findOne({
+    where: { idZona: idZonaBogota },
+  });
+  if (!zona) {
+    throw new BadRequestException(
+      `zona_bogota no encontrada: id_zona=${idZonaBogota}. Use GET /catalogo/zonas-bogota.`,
+    );
+  }
+  return zona;
+}
+
+async function resolverMetodoRecepcionPorId(
+  manager: EntityManager,
+  idMetodoRecepcion: number,
 ): Promise<MetodoRecepcionOrmEntity> {
-  const rows = await manager
-    .getRepository(MetodoRecepcionOrmEntity)
-    .find({ order: { nombre: 'ASC' } });
-  if (!rows.length) {
-    throw new BadRequestException('Catálogo metodo_recepcion vacío.');
+  const metodo = await manager.getRepository(MetodoRecepcionOrmEntity).findOne({
+    where: { idMetodoRecepcion },
+  });
+  if (!metodo) {
+    throw new BadRequestException(
+      `metodo_recepcion no encontrado: id_metodo_recepcion=${idMetodoRecepcion}. Use GET /catalogo/metodos-recepcion.`,
+    );
   }
-  const patterns =
-    operacion === 'DESPACHO'
-      ? [/entrega/i, /domicilio/i, /delivery/i, /despacho/i]
-      : [/recogida/i, /recolec/i, /recolecta/i, /pickup/i, /retiro/i];
-  for (const re of patterns) {
-    const found = rows.find((r) => re.test(r.nombre));
-    if (found) return found;
-  }
-  const nombres = rows.map((r) => `"${r.nombre}"`).join(', ');
-  throw new BadRequestException(
-    `No hay metodo_recepcion que encaje con "${operacion}". ` +
-      `Cree filas (ej. "Entrega" y "Recogida"). Actuales: ${nombres}`,
-  );
+  return metodo;
 }
 
 async function resolverEstadoPedidoCreacion(
@@ -226,14 +242,14 @@ function listadoPostCreacionConCamposNoPersistidos(
 /** Usuario existente con rol **Cliente** o **Administrador** en `usuario_rol` → `rol`. */
 async function cargarUsuarioSolicitanteAutorizado(
   manager: EntityManager,
-  idUsuario: string,
+  idUsuario: number,
 ): Promise<UsuarioOrmEntity> {
   const usuario = await manager.getRepository(UsuarioOrmEntity).findOne({
     where: { idUsuario },
   });
   if (!usuario) {
     throw new BadRequestException(
-      `Usuario no encontrado: ${idUsuario}. Ejemplo de id documentado para pruebas: b0829465-0779-4366-a29a-6feb6c88cbba`,
+      `Usuario no encontrado: ${idUsuario}. Regístrese con POST /auth/register o revise GET /auth/me con su JWT.`,
     );
   }
   let conRolPermitido = 0;
@@ -282,10 +298,8 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
     const txnLabel = randomBytes(3).toString('hex').toUpperCase();
     const t0 = Date.now();
     this.logger.log(
-      `TX[${txnLabel}] begin crear pedido idUsuario=${input.idUsuario} tipoOperacion=${input.tipoOperacion} idCiudad=${input.idCiudad} idDepartamento=${input.idDepartamento.trim()} idPais=${input.idPais.trim()}`,
+      `TX[${txnLabel}] begin crear pedido idUsuario=${input.idUsuario} idMetodoRecepcion=${input.idMetodoRecepcion} idCiudad=${input.idCiudad} idDepartamento=${input.idDepartamento} idPais=${input.idPais}`,
     );
-
-    const idPedido = randomUUID();
 
     const fotosCrudas = [
       ...(input.fotosPaqueteUrls ?? []).map((s) => s.trim()).filter(Boolean),
@@ -297,23 +311,10 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
       );
     }
 
-    let fotosPublicas: string[] | null = null;
-    if (fotosCrudas.length > 0) {
-      fotosPublicas = await this.evidencias.resolverFotosPedido(idPedido, fotosCrudas);
-      fotosPublicas = fotosPublicas.length ? fotosPublicas : null;
-      this.logger.log(
-        `TX[${txnLabel}] storage bucket=evidencias prefijo=pedidos/${idPedido}/ urls=${fotosPublicas?.length ?? 0}`,
-      );
-    }
-
     const manifiestoTxt = input.observacionesManifiesto?.trim();
-    if (manifiestoTxt) {
-      await this.evidencias.guardarManifiestoPedido(idPedido, manifiestoTxt);
-      this.logger.log(`TX[${txnLabel}] storage manifiesto.txt pedidos/${idPedido}/`);
-    }
 
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      const listado = await this.dataSource.transaction(async (manager) => {
         this.logger.log(`TX[${txnLabel}] postgres BEGIN`);
 
         const now = new Date();
@@ -322,6 +323,12 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
 
         const tipoVia = await resolverTipoVia(manager, input.tipoViaNombre);
         const { ciudad, departamento, pais } = await cargarGeografiaDireccion(manager, input);
+        validarIdZonaBogotaParaCiudad(input.idCiudad, input.idZonaBogota);
+        const zonaBogota = await resolverZonaBogotaOpcional(
+          manager,
+          input.idCiudad,
+          input.idZonaBogota,
+        );
         const nombreViaNorm = input.nombreVia.trim().slice(0, 120);
         const zona = armarZonaResumida(
           tipoVia.nombre,
@@ -332,13 +339,12 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
         const observacionesEntrega = input.observacionesDireccion?.trim() || null;
 
         const dirRepo = manager.getRepository(DireccionOrmEntity);
-        const idDireccion = randomUUID();
         const direccion = dirRepo.create({
-          idDireccion,
           tipoVia: { idTipoVia: tipoVia.idTipoVia },
           pais: { idPais: pais.idPais },
           departamento: { idDepartamento: departamento.idDepartamento },
           ciudad: { idCiudad: ciudad.idCiudad },
+          zonaBogota,
           observacionesEntrega,
           zona,
           numeroPrincipal: input.numeroPlaca.trim().slice(0, 32),
@@ -346,34 +352,32 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           creadoEn: now,
         });
         await dirRepo.save(direccion);
-        this.logger.log(`TX[${txnLabel}] insert direccion id_direccion=${idDireccion}`);
+        this.logger.log(
+          `TX[${txnLabel}] insert direccion id_direccion=${direccion.idDireccion} fk_zona=${direccion.zonaBogota?.idZona ?? 'null'}`,
+        );
 
         const paqRepo = manager.getRepository(PaqueteOrmEntity);
-        const idPaquete = randomUUID();
         const paquete = paqRepo.create({
-          idPaquete,
           nombre: input.tipoProductoNombre.trim().slice(0, 200),
           peso: input.pesoKg,
           precio: input.valorDeclarado,
           creadoEn: now,
         });
         await paqRepo.save(paquete);
-        this.logger.log(`TX[${txnLabel}] insert paquete id_paquete=${idPaquete}`);
+        this.logger.log(`TX[${txnLabel}] insert paquete id_paquete=${paquete.idPaquete}`);
 
         const tipoPedido = await resolverTipoPedidoPorId(manager, input.idTipoPedido);
-        const metodo = await resolverMetodoRecepcionPorOperacion(manager, input.tipoOperacion);
+        const metodo = await resolverMetodoRecepcionPorId(manager, input.idMetodoRecepcion);
         const estado = await resolverEstadoPedidoCreacion(manager, this.variables);
 
         const destRepo = manager.getRepository(DestinatarioOrmEntity);
-        const idDestinatario = randomUUID();
         const destinatario = destRepo.create({
-          idDestinatario,
           nombre: input.nombreDestinatario.trim().slice(0, 200),
           telefono: input.telefonoDestinatario.trim().slice(0, 32),
           creadoEn: now,
         });
         await destRepo.save(destinatario);
-        this.logger.log(`TX[${txnLabel}] insert destinatario id_destinatario=${idDestinatario}`);
+        this.logger.log(`TX[${txnLabel}] insert destinatario id_destinatario=${destinatario.idDestinatario}`);
 
         const monto = Number(input.valorDeclarado);
         let fechaEntrega: Date;
@@ -385,7 +389,6 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
 
         const pedidoRepo = manager.getRepository(PedidoOrmEntity);
         const pedido = pedidoRepo.create({
-          idPedido,
           numGuia: generarNumGuia(),
           creadoEn: now,
           tipoPedido: { idTipoPedido: tipoPedido.idTipoPedido },
@@ -394,15 +397,15 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           usuarioRecolector: null,
           usuarioRepartidor: null,
           metodoRecepcion: { idMetodoRecepcion: metodo.idMetodoRecepcion },
-          paquete: { idPaquete },
-          direccion: { idDireccion },
+          paquete,
+          direccion,
           estadoPedido: { idEstadoPedido: estado.idEstadoPedido },
           precio: monto,
           valorDeclarado: monto,
           fechaEntrega,
           fragil: input.fragil,
           observacionesManifiesto: input.observacionesManifiesto?.trim() || null,
-          destinatario: { idDestinatario },
+          destinatario,
           fotosPaqueteUrls: null,
         });
 
@@ -441,6 +444,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           throw e;
         }
 
+        const idPedido = pedido.idPedido;
         this.logger.log(
           `TX[${txnLabel}] insert pedido id_pedido=${idPedido} num_guia=${pedido.numGuia} fk_tipo_pedido=${tipoPedido.idTipoPedido}`,
         );
@@ -455,12 +459,24 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
         this.logger.log(
           `TX[${txnLabel}] postgres COMMIT ok totalMs=${Date.now() - t0} id_pedido=${idPedido}`,
         );
-        return listadoPostCreacionConCamposNoPersistidos(
-          pedidoOrmToListado(row),
-          input,
-          fotosCrudas.length ? { fotosPublicas } : undefined,
-        );
+        return listadoPostCreacionConCamposNoPersistidos(pedidoOrmToListado(row), input, {
+          fotosPublicas: null,
+        });
       });
+
+      let fotosPublicas: string[] | null = null;
+      if (fotosCrudas.length > 0) {
+        fotosPublicas = await this.evidencias.resolverFotosPedido(listado.idPedido, fotosCrudas);
+        fotosPublicas = fotosPublicas.length ? fotosPublicas : null;
+        this.logger.log(
+          `TX[${txnLabel}] storage bucket=evidencias prefijo=pedidos/${listado.idPedido}/ urls=${fotosPublicas?.length ?? 0}`,
+        );
+      }
+      if (manifiestoTxt) {
+        await this.evidencias.guardarManifiestoPedido(listado.idPedido, manifiestoTxt);
+        this.logger.log(`TX[${txnLabel}] storage manifiesto.txt pedidos/${listado.idPedido}/`);
+      }
+      return listadoPostCreacionConCamposNoPersistidos(listado, input, { fotosPublicas });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.logger.warn(`TX[${txnLabel}] postgres ROLLBACK/fail totalMs=${Date.now() - t0}: ${msg}`);
@@ -468,7 +484,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
     }
   }
 
-  async updatePedido(idPedido: string, patch: UpdatePedidoInput): Promise<PedidoListado | null> {
+  async updatePedido(idPedido: number, patch: UpdatePedidoInput): Promise<PedidoListado | null> {
     const existe = await this.pedidoRead.findPedidoById(idPedido);
     if (!existe) return null;
 
@@ -497,7 +513,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
       const pedidoRepo = manager.getRepository(PedidoOrmEntity);
       const pedido = await pedidoRepo.findOne({
         where: { idPedido },
-        relations: ['direccion', 'direccion.tipoVia', 'paquete', 'destinatario'],
+        relations: ['direccion', 'direccion.tipoVia', 'direccion.ciudad', 'paquete', 'destinatario'],
       });
       if (!pedido) {
         throw new InternalServerErrorException('Pedido no encontrado dentro de la transacción');
@@ -516,7 +532,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           pedido.usuarioRecolector = null;
         } else {
           const u = await manager.getRepository(UsuarioOrmEntity).findOne({
-            where: { idUsuario: patch.idUsuarioRecolector.trim() },
+            where: { idUsuario: patch.idUsuarioRecolector },
           });
           if (!u) {
             throw new BadRequestException(`Usuario recolector no encontrado: ${patch.idUsuarioRecolector}`);
@@ -530,7 +546,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           pedido.usuarioRepartidor = null;
         } else {
           const u = await manager.getRepository(UsuarioOrmEntity).findOne({
-            where: { idUsuario: patch.idUsuarioRepartidor.trim() },
+            where: { idUsuario: patch.idUsuarioRepartidor },
           });
           if (!u) {
             throw new BadRequestException(`Usuario repartidor no encontrado: ${patch.idUsuarioRepartidor}`);
@@ -541,7 +557,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
 
       if (patch.idMetodoRecepcion !== undefined) {
         const met = await manager.getRepository(MetodoRecepcionOrmEntity).findOne({
-          where: { idMetodoRecepcion: patch.idMetodoRecepcion.trim() },
+          where: { idMetodoRecepcion: patch.idMetodoRecepcion },
         });
         if (!met) {
           throw new BadRequestException(`Método recepción no encontrado: ${patch.idMetodoRecepcion}`);
@@ -551,13 +567,6 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
 
       if (patch.idTipoPedido !== undefined) {
         pedido.tipoPedido = await resolverTipoPedidoPorId(manager, patch.idTipoPedido);
-      }
-
-      if (patch.tipoOperacion !== undefined) {
-        pedido.metodoRecepcion = await resolverMetodoRecepcionPorOperacion(
-          manager,
-          patch.tipoOperacion,
-        );
       }
 
       let paqueteDirty = false;
@@ -624,6 +633,28 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
         if (patch.observacionesDireccion !== undefined) {
           dir.observacionesEntrega = patch.observacionesDireccion.trim() || null;
         }
+        const idCiudadPatch = patch.idCiudad!;
+        if (patch.idZonaBogota !== undefined) {
+          dir.zonaBogota = await resolverZonaBogotaOpcional(
+            manager,
+            idCiudadPatch,
+            patch.idZonaBogota,
+          );
+        } else if (!esCiudadBogotaDc(idCiudadPatch)) {
+          dir.zonaBogota = null;
+        }
+        await manager.getRepository(DireccionOrmEntity).save(dir);
+      } else if (patch.idZonaBogota !== undefined && pedido.direccion) {
+        const dir = pedido.direccion;
+        const idCiudadActual = dir.ciudad?.idCiudad;
+        if (idCiudadActual == null) {
+          throw new BadRequestException('No se pudo resolver la ciudad de la dirección del pedido.');
+        }
+        dir.zonaBogota = await resolverZonaBogotaOpcional(
+          manager,
+          idCiudadActual,
+          patch.idZonaBogota,
+        );
         await manager.getRepository(DireccionOrmEntity).save(dir);
       } else if (patch.observacionesDireccion !== undefined && pedido.direccion) {
         pedido.direccion.observacionesEntrega = patch.observacionesDireccion.trim() || null;

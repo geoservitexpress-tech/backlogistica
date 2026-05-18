@@ -21,7 +21,8 @@ import { VariablesService } from '../configuracion/variables.service';
 import { createSupabaseAnonClient, createSupabaseServiceClient } from './supabase-clients.factory';
 
 export type AuthProfileDto = {
-  idUsuario: string;
+  /** `usuarios.id_usuario` (entero). */
+  idUsuario: number;
   correo: string;
   nombres: string;
   apellidos: string;
@@ -112,19 +113,32 @@ export class AuthService {
     };
   }
 
-  private async cargarPerfil(idUsuario: string): Promise<AuthProfileDto> {
+  /** Resuelve `usuarios.id_usuario` (entero) desde el `sub` UUID del JWT de Supabase. */
+  async idUsuarioFromAuthSub(authUserId: string): Promise<number> {
     const u = await this.dataSource.manager.getRepository(UsuarioOrmEntity).findOne({
-      where: { idUsuario },
+      where: { authUserId: authUserId.trim() },
     });
     if (!u) {
-      this.logger.warn(`cargarPerfil: usuario Auth sin fila en usuarios idUsuario=${idUsuario}`);
+      throw new NotFoundException(
+        'Usuario autenticado en Supabase pero sin fila en `usuarios`. Complete POST /auth/register.',
+      );
+    }
+    return u.idUsuario;
+  }
+
+  private async cargarPerfilPorAuthSub(authUserId: string): Promise<AuthProfileDto> {
+    const u = await this.dataSource.manager.getRepository(UsuarioOrmEntity).findOne({
+      where: { authUserId },
+    });
+    if (!u) {
+      this.logger.warn(`cargarPerfil: sin fila usuarios auth_user_id=${authUserId}`);
       throw new NotFoundException(
         'Usuario autenticado en Supabase pero sin fila en `usuarios`. Complete el flujo de registro.',
       );
     }
     const urs = await this.dataSource.manager
       .getRepository(UsuarioRolOrmEntity)
-      .find({ where: { idUsuario } });
+      .find({ where: { idUsuario: u.idUsuario } });
     const roles: string[] = [];
     for (const ur of urs) {
       const rol = await this.dataSource.manager.getRepository(RolOrmEntity).findOne({
@@ -145,7 +159,7 @@ export class AuthService {
 
   /**
    * Orden: (1) crear fila en Auth (`auth.users`) vía Admin API — es lo que alimenta Authentication → Users;
-   * (2) si eso OK, transacción en `usuarios` + `usuario_rol` con el mismo UUID (`sub`).
+   * (2) si eso OK, transacción en `usuarios` (`id_usuario` entero) + `usuario_rol`; UUID en `auth_user_id`.
    */
   async register(dto: RegisterDto): Promise<AuthTokensDto> {
     const url = this.supabaseUrl();
@@ -215,13 +229,14 @@ export class AuthService {
     }
 
     const authUserId = created.user.id;
-    this.logger.log(`register Supabase Auth usuario creado idUsuario=${authUserId}`);
+    this.logger.log(`register Supabase Auth usuario creado auth_user_id=${authUserId}`);
     const now = new Date();
 
+    let idUsuario = 0;
     try {
       await this.dataSource.transaction(async (manager) => {
         const usuario = manager.getRepository(UsuarioOrmEntity).create({
-          idUsuario: authUserId,
+          authUserId,
           nombres: dto.nombres.trim().slice(0, 120),
           apellidos: dto.apellidos.trim().slice(0, 120),
           tipoDocumento: { idTipoDocumento: tipoDoc.idTipoDocumento },
@@ -231,14 +246,17 @@ export class AuthService {
           creadoEn: now,
         });
         await manager.getRepository(UsuarioOrmEntity).save(usuario);
+        idUsuario = usuario.idUsuario;
 
         const ur = manager.getRepository(UsuarioRolOrmEntity).create({
-          idUsuario: authUserId,
+          idUsuario: usuario.idUsuario,
           idRol: rol.idRol,
         });
         await manager.getRepository(UsuarioRolOrmEntity).save(ur);
       });
-      this.logger.log(`register Postgres usuarios+usuario_rol guardados idUsuario=${authUserId}`);
+      this.logger.log(
+        `register Postgres usuarios+usuario_rol guardados id_usuario=${idUsuario} auth_user_id=${authUserId}`,
+      );
     } catch (dbErr) {
       const dbMsg = dbErr instanceof Error ? dbErr.message : String(dbErr);
       const dbStack = dbErr instanceof Error ? dbErr.stack : undefined;
@@ -271,9 +289,9 @@ export class AuthService {
       );
     }
 
-    const profile = await this.cargarPerfil(authUserId);
+    const profile = await this.cargarPerfilPorAuthSub(authUserId);
     this.logger.log(
-      `register completado idUsuario=${authUserId} correo=${correoNorm} roles=${profile.roles.join(',')}`,
+      `register completado id_usuario=${profile.idUsuario} correo=${correoNorm} roles=${profile.roles.join(',')}`,
     );
     return this.mapSessionUser(sessionData.session, profile);
   }
@@ -296,41 +314,19 @@ export class AuthService {
       throw new UnauthorizedException(error?.message ?? 'Credenciales inválidas');
     }
 
-    const profile = await this.cargarPerfil(data.session.user.id);
+    const profile = await this.cargarPerfilPorAuthSub(data.session.user.id);
     this.logger.log(
-      `login ok idUsuario=${data.session.user.id} correo=${correoNorm} roles=${profile.roles.join(',')}`,
+      `login ok id_usuario=${profile.idUsuario} correo=${correoNorm} roles=${profile.roles.join(',')}`,
     );
     return this.mapSessionUser(data.session, profile);
   }
 
-  async me(idUsuario: string): Promise<AuthProfileDto> {
-    this.logger.log(`me cargando perfil idUsuario=${idUsuario}`);
-    const u = await this.dataSource.manager.getRepository(UsuarioOrmEntity).findOne({
-      where: { idUsuario },
-    });
-    if (!u) {
-      this.logger.warn(`me perfil no encontrado idUsuario=${idUsuario}`);
-      throw new NotFoundException('Perfil no encontrado en `usuarios`.');
-    }
-    const urs = await this.dataSource.manager
-      .getRepository(UsuarioRolOrmEntity)
-      .find({ where: { idUsuario } });
-    const roles: string[] = [];
-    for (const ur of urs) {
-      const rol = await this.dataSource.manager.getRepository(RolOrmEntity).findOne({
-        where: { idRol: ur.idRol },
-      });
-      if (rol) roles.push(rol.nombre);
-    }
-    this.logger.log(`me ok idUsuario=${idUsuario} correo=${u.correo} roles=${roles.join(',')}`);
-    return {
-      idUsuario: u.idUsuario,
-      correo: u.correo,
-      nombres: u.nombres,
-      apellidos: u.apellidos,
-      documento: u.documento,
-      telefono: u.telefono,
-      roles,
-    };
+  async me(authUserId: string): Promise<AuthProfileDto> {
+    this.logger.log(`me cargando perfil auth_user_id=${authUserId}`);
+    const profile = await this.cargarPerfilPorAuthSub(authUserId);
+    this.logger.log(
+      `me ok id_usuario=${profile.idUsuario} correo=${profile.correo} roles=${profile.roles.join(',')}`,
+    );
+    return profile;
   }
 }

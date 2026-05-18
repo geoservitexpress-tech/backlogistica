@@ -7,6 +7,12 @@ export class ListCiudadesUseCase {
   constructor(@Inject(CATALOG_READ) private readonly catalog: CatalogReadPort) {}
 
   execute() {
-    return this.catalog.listCiudades();
+    return this.catalog.listCiudades().then((rows) =>
+      rows.map((r) => ({
+        idCiudad: r.idCiudad,
+        nombre: r.nombre,
+        codigoDane: r.codigoDane,
+      })),
+    );
   }
 }
