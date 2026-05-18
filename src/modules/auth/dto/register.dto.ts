@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsInt, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsInt, IsString, MaxLength, MinLength } from 'class-validator';
 import { ROL_ID_CLIENTE, TIPO_DOCUMENTO_ID_REGISTRO } from '../auth.constants';
 import { SWAGGER_EJEMPLO_CORREO, SWAGGER_EJEMPLO_PASSWORD } from '../../../swagger/swagger-ejemplos';
 
@@ -31,8 +31,9 @@ export class RegisterDto {
   apellidos!: string;
 
   @ApiProperty({
+    type: 'integer',
     description:
-      '`tipo_documento.id_tipo_documento` (p. ej. 1 = Cédula de ciudadanía). Ver **GET /catalogo/tipos-documento**.',
+      '`tipo_documento.id_tipo_documento` — **1** = Cédula de ciudadanía. Ver **GET /catalogo/tipos-documento**.',
     example: TIPO_DOCUMENTO_ID_REGISTRO,
   })
   @IsInt()
@@ -51,7 +52,8 @@ export class RegisterDto {
   telefono!: string;
 
   @ApiProperty({
-    description: '`rol.id_rol` del usuario en la tabla `rol` (p. ej. 1 = Cliente).',
+    type: 'integer',
+    description: '`rol.id_rol` — **1** = Cliente. Ver **GET /catalogo/roles**.',
     example: ROL_ID_CLIENTE,
   })
   @IsInt()

@@ -22,6 +22,7 @@ import { RegisterDto } from './dto/register.dto';
 import { SupabaseJwtGuard } from './guards/supabase-jwt.guard';
 import type { SupabaseJwtPayload } from './guards/supabase-jwt.guard';
 import { AuthService } from './auth.service';
+import { EJEMPLO_REGISTER_CLIENTE_CEDULA } from '../../swagger/ejemplos/register.ejemplos';
 import { SWAGGER_EJEMPLO_CORREO } from '../../swagger/swagger-ejemplos';
 
 @ApiTags('Auth')
@@ -38,9 +39,18 @@ export class AuthController {
     description:
       'Crea usuario en **Supabase Auth** (`auth.users`) y filas en **`usuarios`** + **`usuario_rol`**. ' +
       '`id_usuario` en Postgres coincide con el UUID de Supabase (`sub` del JWT). ' +
-      'Envíe **`idRol`** (`rol.id_rol`).',
+      '**`idRol`** y **`fkTipoDocumento`** son enteros del catálogo (`GET /catalogo/roles`, `GET /catalogo/tipos-documento`).',
   })
-  @ApiBody({ type: RegisterDto })
+  @ApiBody({
+    type: RegisterDto,
+    examples: {
+      clienteCedula: {
+        summary: 'Cliente con cédula de ciudadanía',
+        description: 'idRol=1 (Cliente), fkTipoDocumento=1 (Cédula de ciudadanía).',
+        value: EJEMPLO_REGISTER_CLIENTE_CEDULA,
+      },
+    },
+  })
   register(@Body() body: RegisterDto) {
     this.logger.log(
       `POST /auth/register correo=${body.correo} idRol=${body.idRol} fkTipoDocumento=${body.fkTipoDocumento}`,
