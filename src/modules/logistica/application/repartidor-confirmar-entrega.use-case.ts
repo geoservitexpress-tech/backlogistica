@@ -13,7 +13,7 @@ import { VAR } from '../../configuracion/variable.keys';
 import { VariablesService } from '../../configuracion/variables.service';
 import {
   ESTADO_PEDIDO_ENTREGADO_ID,
-  ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
+  ESTADO_PEDIDO_EN_CURSO_ID,
 } from '../logistica-pedido-estados.constants';
 import { PEDIDO_READ } from '../pedidos.tokens';
 import { DescripcionSeguimientoOrmEntity } from '../infrastructure/persistence/descripcion-seguimiento.orm-entity';
@@ -43,10 +43,10 @@ export class RepartidorConfirmarEntregaUseCase {
     private readonly evidencias: SupabaseEvidenciasStorage,
   ) {}
 
-  private async idEstadoEnCamino(): Promise<number> {
+  private async idEstadoEnCurso(): Promise<number> {
     return this.variables.getInt(
       VAR.REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID,
-      ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
+      ESTADO_PEDIDO_EN_CURSO_ID,
       { min: 1 },
     );
   }
@@ -104,13 +104,22 @@ export class RepartidorConfirmarEntregaUseCase {
     }
   }
 
-  private validarFotos(body: ConfirmarEntregaRepartidorBodyDto, codigo: string): void {
+  private entradasFotosEntrega(body: ConfirmarEntregaRepartidorBodyDto): string[] {
+    const urls = [
+      ...(body.fotosEntregaUrls ?? []),
+    ];
+    const b64 = [
+      ...(body.fotoEntregaBase64 ? [body.fotoEntregaBase64] : []),
+      ...(body.fotosEntregaBase64 ?? []),
+    ];
+    return [...urls, ...b64];
+  }
+
+  private validarFotos(entradas: string[], codigo: string): void {
     if (resultadoSinEntrega(codigo)) return;
-    const urls = body.fotosEntregaUrls ?? [];
-    const b64 = body.fotosEntregaBase64 ?? [];
-    if (urls.length + b64.length === 0) {
+    if (entradas.length === 0) {
       throw new BadRequestException(
-        'Incluya al menos una foto (fotosEntregaBase64 o fotosEntregaUrls), igual que en el alta del pedido.',
+        'Incluya al menos una foto (`fotoEntregaBase64`, `fotosEntregaBase64` o `fotosEntregaUrls`), igual que en el alta del pedido.',
       );
     }
   }
@@ -145,9 +154,10 @@ export class RepartidorConfirmarEntregaUseCase {
       );
     }
 
-    this.validarFotos(body, resultado.codigo);
+    const entradasFoto = this.entradasFotosEntrega(body);
+    this.validarFotos(entradasFoto, resultado.codigo);
 
-    const idEnCamino = await this.idEstadoEnCamino();
+    const idEnCurso = await this.idEstadoEnCurso();
     const idEntregado = await this.idEstadoEntregado();
 
     const row = await this.pedidoRepo.findOne({
@@ -168,23 +178,19 @@ export class RepartidorConfirmarEntregaUseCase {
     if (estadoActual === idEntregado) {
       throw new ConflictException('El pedido ya está marcado como Entregado.');
     }
-    if (estadoActual !== idEnCamino) {
+    if (estadoActual !== idEnCurso) {
       throw new ConflictException(
-        `Solo se puede confirmar entrega desde En Camino. Estado actual: ${row.estadoPedido.nombre}.`,
+        `Solo se puede confirmar entrega desde En curso. Estado actual: ${row.estadoPedido.nombre}.`,
       );
     }
 
-    const entradasFoto = [
-      ...(body.fotosEntregaUrls ?? []),
-      ...(body.fotosEntregaBase64 ?? []),
-    ];
     const fotosUrls =
       entradasFoto.length > 0
         ? await this.evidencias.resolverFotosPedido(idPedido, entradasFoto)
         : [];
 
     const pasaAEntregado = resultadoPasaAEntregado(resultado.codigo);
-    const idEstadoPaso = pasaAEntregado ? idEntregado : idEnCamino;
+    const idEstadoPaso = pasaAEntregado ? idEntregado : idEnCurso;
     const observaciones = body.observaciones.trim();
 
     await this.dataSource.transaction(async (manager) => {

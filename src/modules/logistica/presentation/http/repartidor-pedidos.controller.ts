@@ -22,11 +22,13 @@ import {
   ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import {
   EJEMPLO_ENTREGA_EXITO_EFECTIVO,
   EJEMPLO_ENTREGA_NOVEDADES,
   EJEMPLO_ENTREGA_NO_ENTREGADO,
+  EJEMPLO_RESPUESTA_PEDIDO_ENTREGADO,
 } from '../../../../swagger/ejemplos/confirmar-entrega-repartidor.ejemplos';
 import { AuthService } from '../../../auth/auth.service';
 import { CurrentSupabaseUser } from '../../../auth/decorators/current-supabase-user.decorator';
@@ -35,18 +37,20 @@ import { SupabaseJwtGuard } from '../../../auth/guards/supabase-jwt.guard';
 import type { SupabaseJwtPayload } from '../../../auth/guards/supabase-jwt.guard';
 import { ListPedidosRepartidorUseCase } from '../../application/list-pedidos-repartidor.use-case';
 import { RepartidorAceptarPedidoUseCase } from '../../application/repartidor-aceptar-pedido.use-case';
+import { RepartidorRecibirPedidoUseCase } from '../../application/repartidor-recibir-pedido.use-case';
 import { RepartidorConfirmarEntregaUseCase } from '../../application/repartidor-confirmar-entrega.use-case';
 import { PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
 import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import {
   ESTADO_PEDIDO_ASIGNADO_ID,
+  ESTADO_PEDIDO_EN_CURSO_ID,
   ESTADO_PEDIDO_ENTREGADO_ID,
   ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
 } from '../../logistica-pedido-estados.constants';
 import { ConfirmarEntregaRepartidorBodyDto } from './dto/confirmar-entrega-repartidor.body.dto';
 
 @ApiTags('Repartidor')
-@ApiExtraModels(ConfirmarEntregaRepartidorBodyDto)
+@ApiExtraModels(ConfirmarEntregaRepartidorBodyDto, PedidoListadoSchema)
 @ApiBearerAuth('supabase-jwt')
 @ApiUnauthorizedResponse({
   description:
@@ -58,6 +62,7 @@ export class RepartidorPedidosController {
   constructor(
     private readonly auth: AuthService,
     private readonly listMisPedidos: ListPedidosRepartidorUseCase,
+    private readonly recibirPedido: RepartidorRecibirPedidoUseCase,
     private readonly aceptarPedido: RepartidorAceptarPedidoUseCase,
     private readonly confirmarEntrega: RepartidorConfirmarEntregaUseCase,
   ) {}
@@ -66,11 +71,13 @@ export class RepartidorPedidosController {
   @ApiOperation({
     summary: 'Mis pedidos asignados',
     description:
-      'Lista pedidos donde `fk_usuario_repartidor` = `sub` del JWT.\n\n' +
-      '**Flujo app repartidor:**\n' +
-      `1. Cron/admin asigna rep → estado **Asignado** (id **${ESTADO_PEDIDO_ASIGNADO_ID}**)\n` +
-      `2. \`POST /repartidor/pedidos/{id}/aceptar\` → **Recibido repartidor / En camino** (id **${ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID}**, variable \`REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID\`)\n` +
-      `3. Formulario en destino → \`POST /repartidor/pedidos/{id}/confirmar-entrega\` → **Entregado** (id **${ESTADO_PEDIDO_ENTREGADO_ID}**) si EXITO/NOVEDADES`,
+      'Lista pedidos donde `fk_usuario_repartidor` = el repartidor del JWT.\n\n' +
+      '**Front:** botón **Recibir** si `idEstadoPedido === 2`; botón **En curso** si `idEstadoPedido === 3`.\n\n' +
+      '**Flujo:**\n' +
+      `1. Cron → **Asignado** (**${ESTADO_PEDIDO_ASIGNADO_ID}**)\n` +
+      `2. \`POST …/recibir\` → **Recibido repartidor** (**${ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID}**)\n` +
+      `3. \`POST …/aceptar\` → **En curso** (**${ESTADO_PEDIDO_EN_CURSO_ID}**)\n` +
+      `4. \`POST …/confirmar-entrega\` → **Entregado** (**${ESTADO_PEDIDO_ENTREGADO_ID}**)`,
   })
   @ApiOkResponse({ type: PedidoListadoSchema, isArray: true })
   @ApiForbiddenResponse({ description: 'El usuario no tiene rol REPARTIDOR' })
@@ -79,13 +86,13 @@ export class RepartidorPedidosController {
     return this.listMisPedidos.execute(idRepartidor);
   }
 
-  @Post(':id/aceptar')
+  @Post(':id/recibir')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Aceptar pedido (En Camino)',
+    summary: 'Recibir pedido (botón front)',
     description:
-      'El repartidor confirma la entrega asignada: el pedido debe estar en estado **Asignado**, asignado a él, ' +
-      `y pasa a **En Camino** (\`fk_estado_pedido\` = **${ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID}** por defecto; ver \`REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID\` en \`public.variable\`).`,
+      'Cambia **Asignado** → **Recibido por el repartidor** (`fk_estado_pedido` 2 → 3). ' +
+      'Registra paso en `seguimiento` / `descripcion_seguimiento`. Sin body.',
   })
   @ApiParam({
     name: 'id',
@@ -95,12 +102,43 @@ export class RepartidorPedidosController {
   })
   @ApiOkResponse({
     type: PedidoListadoSchema,
-    description: 'Pedido actualizado con estado En Camino',
+    description: 'Pedido con `idEstadoPedido` = 3',
   })
   @ApiNotFoundResponse({ description: 'Pedido no existe' })
   @ApiForbiddenResponse({ description: 'Pedido asignado a otro repartidor o sin rol REPARTIDOR' })
   @ApiConflictResponse({
-    description: 'Ya está En Camino o no está en estado Asignado',
+    description: 'Ya fue recibido o no está en estado Asignado (2)',
+  })
+  async recibir(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentSupabaseUser() jwt: SupabaseJwtPayload,
+  ) {
+    const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
+    return this.recibirPedido.execute(id, idRepartidor);
+  }
+
+  @Post(':id/aceptar')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Poner pedido en curso',
+    description:
+      '**Recibido por el repartidor** → **En curso** (`fk_estado_pedido` 3 → 4). ' +
+      'Segundo paso tras `/recibir`. Sin body.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: 'integer',
+    description: '`pedidos.id_pedido`',
+    example: SWAGGER_EJEMPLO_ID_PEDIDO,
+  })
+  @ApiOkResponse({
+    type: PedidoListadoSchema,
+    description: 'Pedido con `idEstadoPedido` = 4',
+  })
+  @ApiNotFoundResponse({ description: 'Pedido no existe' })
+  @ApiForbiddenResponse({ description: 'Pedido de otro repartidor' })
+  @ApiConflictResponse({
+    description: 'Ya está en curso (4) o no está en Recibido (3)',
   })
   async aceptar(
     @Param('id', ParseIntPipe) id: number,
@@ -116,7 +154,7 @@ export class RepartidorPedidosController {
     summary: 'Confirmar entrega (formulario repartidor)',
     description:
       'Formulario de cierre: `idResultadoEntrega` (catálogo), cobro en `pedidos`, observaciones y fotos en **seguimiento** / **descripcion_seguimiento** (mismo bucket **evidencias** que el alta). ' +
-      `Éxito o novedades → estado pedido **Entregado** (id **${ESTADO_PEDIDO_ENTREGADO_ID}**). No entregado → nuevo paso en seguimiento, sigue **En Camino**. ` +
+      `Requiere **En curso** (id **${ESTADO_PEDIDO_EN_CURSO_ID}**). Éxito/novedades → **Entregado** (**${ESTADO_PEDIDO_ENTREGADO_ID}**). ` +
       'Antes: **GET /catalogo/resultados-entrega**.',
   })
   @ApiParam({
@@ -128,34 +166,47 @@ export class RepartidorPedidosController {
   @ApiBody({
     type: ConfirmarEntregaRepartidorBodyDto,
     description:
-      'Use `idResultadoEntrega` del catálogo. Fotos: `fotosEntregaBase64` / `fotosEntregaUrls` (como crear pedido). ' +
-      'Observaciones → `descripcion_seguimiento.observaciones`.',
+      'Use `idResultadoEntrega` del catálogo. **Fotos:** `fotosEntregaBase64` (varias data URL), `fotoEntregaBase64` (una) o `fotosEntregaUrls`. ' +
+      'Cada foto → fila en `descripcion_seguimiento`; **observaciones** en la primera fila del paso.',
     examples: {
       entregaExitoEfectivo: {
         summary: 'Entregado con éxito + cobro efectivo',
-        description: 'Pasa a estado Entregado. Incluya `fotoEntregaUrl` o `fotoEntregaBase64`.',
+        description:
+          `Pasa a **Entregado** (**${ESTADO_PEDIDO_ENTREGADO_ID}**). Ejemplo con **2 fotos** en \`fotosEntregaBase64\` + \`observaciones\`.`,
         value: { ...EJEMPLO_ENTREGA_EXITO_EFECTIVO },
       },
       entregaConNovedades: {
         summary: 'Entregado con novedades (ya pagado remitente)',
+        description: 'También con foto en base64 (`fotosEntregaBase64`).',
         value: { ...EJEMPLO_ENTREGA_NOVEDADES },
       },
       noEntregado: {
-        summary: 'No entregado (sigue En Camino)',
-        description: 'No cambia a Entregado; guarda motivo en Storage.',
+        summary: 'No entregado (sigue En curso)',
+        description: 'No cambia a Entregado; solo observaciones (foto opcional).',
         value: { ...EJEMPLO_ENTREGA_NO_ENTREGADO },
       },
     },
   })
   @ApiOkResponse({
-    type: PedidoListadoSchema,
     description:
-      'Pedido actualizado. Cobro en columnas `pedidos`; detalle del paso en tablas `seguimiento` / `descripcion_seguimiento`.',
+      'Pedido actualizado. Tras éxito/novedades: `idEstadoPedido` = **5** (Entregado). Cobro en `pedidos`; foto y observaciones en `seguimiento` / `descripcion_seguimiento`.',
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(PedidoListadoSchema) },
+        examples: {
+          entregado: {
+            summary: 'Tras confirmar entrega exitosa',
+            description: '`idEstadoPedido` = 5 (Entregado)',
+            value: EJEMPLO_RESPUESTA_PEDIDO_ENTREGADO,
+          },
+        },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Validación del formulario o foto obligatoria' })
   @ApiNotFoundResponse({ description: 'Pedido no existe' })
   @ApiForbiddenResponse({ description: 'Pedido de otro repartidor' })
-  @ApiConflictResponse({ description: 'No está En Camino o ya Entregado' })
+  @ApiConflictResponse({ description: 'No está En curso (4) o ya Entregado' })
   async confirmarEntregaPedido(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: ConfirmarEntregaRepartidorBodyDto,

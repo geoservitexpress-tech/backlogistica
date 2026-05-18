@@ -2,13 +2,17 @@ import type { PedidoListado } from '../read-models/pedido-listado';
 
 /** Filtros opcionales para listados (solo lectura). */
 export interface ListPedidosFilter {
-  /** Día calendario en UTC, formato `YYYY-MM-DD`. */
+  /** Día de `pedidos.creado_en`, formato `YYYY-MM-DD`. */
   fecha?: string;
+  /** Día de `pedidos.fecha_entrega`, formato `YYYY-MM-DD`. */
+  fechaEntrega?: string;
   idUsuario?: number;
   /** Un solo pedido por `pedidos.id_pedido` (equivale a filtrar el listado a 0 o 1 fila). */
   idPedido?: number;
   /** `usuarios.id_usuario` del repartidor (`fk_usuario_repartidor`). */
   idRepartidor?: number;
+  /** Filtra por `estado_pedido.id_estado_pedido` (OR). */
+  idsEstadoPedido?: number[];
 }
 
 export interface PedidoReadPort {

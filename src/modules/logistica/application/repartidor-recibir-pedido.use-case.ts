@@ -10,7 +10,7 @@ import { DataSource, Repository } from 'typeorm';
 import { VAR } from '../../configuracion/variable.keys';
 import { VariablesService } from '../../configuracion/variables.service';
 import {
-  ESTADO_PEDIDO_EN_CURSO_ID,
+  ESTADO_PEDIDO_ASIGNADO_ID,
   ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
 } from '../logistica-pedido-estados.constants';
 import type { PedidoReadPort } from '../domain/ports/pedido-read.port';
@@ -18,12 +18,11 @@ import { PEDIDO_READ } from '../pedidos.tokens';
 import { PedidoOrmEntity } from '../infrastructure/persistence/pedido.orm-entity';
 import {
   registrarSeguimientoPasoEstado,
-  SEGUIMIENTO_DESCRIPCION_EN_CURSO,
+  SEGUIMIENTO_DESCRIPCION_RECIBIDO_REPARTIDOR,
 } from '../infrastructure/persistence/registrar-seguimiento-pedido';
 
-/** Recibido por el repartidor (3) → En curso (4). */
 @Injectable()
-export class RepartidorAceptarPedidoUseCase {
+export class RepartidorRecibirPedidoUseCase {
   constructor(
     private readonly variables: VariablesService,
     @Inject(PEDIDO_READ) private readonly pedidos: PedidoReadPort,
@@ -33,14 +32,14 @@ export class RepartidorAceptarPedidoUseCase {
   ) {}
 
   async execute(idPedido: number, idRepartidor: number) {
+    const idAsignado = await this.variables.getInt(
+      VAR.REPARTIDOR_PEDIDO_ESTADO_ASIGNADO_ID,
+      ESTADO_PEDIDO_ASIGNADO_ID,
+      { min: 1 },
+    );
     const idRecibido = await this.variables.getInt(
       VAR.REPARTIDOR_PEDIDO_ESTADO_RECIBIDO_ID,
       ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
-      { min: 1 },
-    );
-    const idEnCurso = await this.variables.getInt(
-      VAR.REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID,
-      ESTADO_PEDIDO_EN_CURSO_ID,
       { min: 1 },
     );
 
@@ -59,24 +58,24 @@ export class RepartidorAceptarPedidoUseCase {
     }
 
     const estadoActual = row.estadoPedido.idEstadoPedido;
-    if (estadoActual === idEnCurso) {
-      throw new ConflictException('El pedido ya está en curso.');
+    if (estadoActual === idRecibido) {
+      throw new ConflictException('El pedido ya fue recibido.');
     }
-    if (estadoActual !== idRecibido) {
+    if (estadoActual !== idAsignado) {
       throw new ConflictException(
-        `Solo se puede poner en curso desde Recibido por el repartidor. Estado actual: ${row.estadoPedido.nombre}.`,
+        `Solo se puede recibir desde Asignado. Estado actual: ${row.estadoPedido.nombre}.`,
       );
     }
 
     await this.dataSource.transaction(async (manager) => {
       await manager.query(
         `update pedidos set fk_estado_pedido = $2::int where id_pedido = $1::int`,
-        [idPedido, idEnCurso],
+        [idPedido, idRecibido],
       );
       await registrarSeguimientoPasoEstado(manager, {
         idPedido,
-        idEstadoPedido: idEnCurso,
-        descripcion: SEGUIMIENTO_DESCRIPCION_EN_CURSO,
+        idEstadoPedido: idRecibido,
+        descripcion: SEGUIMIENTO_DESCRIPCION_RECIBIDO_REPARTIDOR,
       });
     });
 

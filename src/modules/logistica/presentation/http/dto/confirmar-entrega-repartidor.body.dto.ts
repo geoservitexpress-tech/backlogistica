@@ -61,7 +61,7 @@ export class ConfirmarEntregaRepartidorBodyDto {
 
   @ApiProperty({
     description:
-      'Detalle del paso (motivo, comentarios, etc.). Se guarda en `descripcion_seguimiento.observaciones`.',
+      'Comentarios del cierre (motivo, quién recibió, etc.). Se guardan en `descripcion_seguimiento.observaciones` del **primer** paso foto; si envía varias fotos, las demás filas llevan la misma evidencia sin repetir el texto.',
     example: 'Se dejó en recepción con el vigilante Juan Pérez',
   })
   @IsString()
@@ -71,7 +71,18 @@ export class ConfirmarEntregaRepartidorBodyDto {
 
   @ApiPropertyOptional({
     description:
-      'Fotos en base64 (`data:image/...`), igual que `fotosPaqueteBase64` al crear el pedido. Máx. 8 en total con URLs.',
+      'Una foto de evidencia en base64 (`data:image/jpeg;base64,...` o `data:image/png;base64,...`). ' +
+      'Se sube a Storage **evidencias** y la URL queda en `descripcion_seguimiento.foto_url` del paso (estado **5** si la entrega fue exitosa).',
+    example: EJEMPLO_FOTO_PAQUETE_DATA_URL,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(13_500_000)
+  fotoEntregaBase64?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Varias fotos en base64 (recomendado para múltiples evidencias). Cada imagen genera una fila en `descripcion_seguimiento` del mismo `seguimiento`. Máx. 8 en total con `fotoEntregaBase64` y URLs.',
     type: [String],
     maxItems: 8,
     example: [EJEMPLO_FOTO_PAQUETE_DATA_URL],

@@ -2,7 +2,7 @@ import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common
 import { VAR } from '../../../configuracion/variable.keys';
 import { VariablesService } from '../../../configuracion/variables.service';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, FindOptionsWhere, QueryFailedError, Repository } from 'typeorm';
+import { Between, DataSource, FindOptionsWhere, In, QueryFailedError, Repository } from 'typeorm';
 import type { PedidoListado } from '../../domain/read-models/pedido-listado';
 import type { ListPedidosFilter } from '../../domain/ports/pedido-read.port';
 import { PedidoReadPort } from '../../domain/ports/pedido-read.port';
@@ -106,39 +106,43 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
     (await this.variables.getText(VAR.LIST_PEDIDOS_FECHA_TZ, 'America/Bogota')).trim().toUpperCase() === 'UTC'
       ? 'UTC'
       : 'America/Bogota';
-  const filtroDesc = filter?.fecha ? `fecha=${filter.fecha} tz=${tzModo}` : 'sin filtro fecha';
+  const filtroDesc = [
+    filter?.fecha ? `creado=${filter.fecha} tz=${tzModo}` : null,
+    filter?.fechaEntrega ? `fecha_entrega=${filter.fechaEntrega}` : null,
+    filter?.idsEstadoPedido?.length ? `estados=${filter.idsEstadoPedido.join(',')}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ') || 'sin filtro fecha';
 
-  const whereBase: FindOptionsWhere<PedidoOrmEntity> = {};
+  const where: FindOptionsWhere<PedidoOrmEntity> = {};
   if (filter?.idUsuario) {
-    whereBase.usuarioSolicitud = { idUsuario: filter.idUsuario };
+    where.usuarioSolicitud = { idUsuario: filter.idUsuario };
   }
   if (filter?.idRepartidor) {
-    whereBase.usuarioRepartidor = { idUsuario: filter.idRepartidor };
+    where.usuarioRepartidor = { idUsuario: filter.idRepartidor };
+  }
+  if (filter?.fechaEntrega) {
+    where.fechaEntrega = new Date(`${filter.fechaEntrega}T12:00:00.000Z`);
+  }
+  if (filter?.idsEstadoPedido?.length) {
+    where.estadoPedido = { idEstadoPedido: In(filter.idsEstadoPedido) };
   }
 
   try {
     if (filter?.fecha) {
       const { desde, hasta } = await rangoParaFiltroCreadoEn(filter.fecha, this.variables);
-      const rows = await this.repo.find({
-        ...base,
-        where: { ...whereBase, creadoEn: Between(desde, hasta) },
-      });
-      const out = await Promise.all(
-        rows.map(async (row) =>
-          enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row)),
-        ),
-      );
-      this.logger.log(`listPedidos ${filtroDesc} idUsuario=${filter?.idUsuario ?? 'todos'} count=${out.length} ${Date.now() - t0}ms`);
-      return out;
+      where.creadoEn = Between(desde, hasta);
     }
 
-    const rows = await this.repo.find({ ...base, where: whereBase });
+    const rows = await this.repo.find({ ...base, where });
     const out = await Promise.all(
       rows.map(async (row) =>
         enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row)),
       ),
     );
-    this.logger.log(`listPedidos ${filtroDesc} idUsuario=${filter?.idUsuario ?? 'todos'} count=${out.length} ${Date.now() - t0}ms`);
+    this.logger.log(
+      `listPedidos ${filtroDesc} idUsuario=${filter?.idUsuario ?? 'todos'} idRepartidor=${filter?.idRepartidor ?? 'todos'} count=${out.length} ${Date.now() - t0}ms`,
+    );
     return out;
   } catch (e) {
     this.rethrowIfMissingRelation(e);

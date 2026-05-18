@@ -7,6 +7,8 @@ import { SeguimientoOrmEntity } from './seguimiento.orm-entity';
 
 export const SEGUIMIENTO_DESCRIPCION_MANIFIESTO = 'Manifiesto de carga';
 export const SEGUIMIENTO_DESCRIPCION_FOTO_PAQUETE = 'Foto del paquete';
+export const SEGUIMIENTO_DESCRIPCION_RECIBIDO_REPARTIDOR = 'Recibido por el repartidor';
+export const SEGUIMIENTO_DESCRIPCION_EN_CURSO = 'En curso';
 
 export async function assertTablasSeguimientoPedido(manager: EntityManager): Promise<void> {
   const rows = (await manager.query(
@@ -123,6 +125,37 @@ export async function anexarFotosSeguimientoCreacion(
       }),
     );
   }
+}
+
+/** Paso de seguimiento por cambio de estado (p. ej. repartidor recibe el pedido). */
+export async function registrarSeguimientoPasoEstado(
+  manager: EntityManager,
+  params: {
+    idPedido: number;
+    idEstadoPedido: number;
+    descripcion: string;
+    observaciones?: string | null;
+  },
+): Promise<void> {
+  await assertTablasSeguimientoPedido(manager);
+  const now = new Date();
+  const seguimiento = manager.create(SeguimientoOrmEntity, {
+    pedido: { idPedido: params.idPedido } as PedidoOrmEntity,
+    estadoPedido: { idEstadoPedido: params.idEstadoPedido } as EstadoPedidoOrmEntity,
+    fecha: now,
+  });
+  await manager.save(seguimiento);
+  await manager.save(
+    manager.create(DescripcionSeguimientoOrmEntity, {
+      seguimiento,
+      estadoPedido: { idEstadoPedido: params.idEstadoPedido } as EstadoPedidoOrmEntity,
+      descripcion: params.descripcion,
+      fotoUrl: null,
+      observaciones: params.observaciones?.trim() || null,
+      resultadoEntrega: null,
+      creadoEn: now,
+    }),
+  );
 }
 
 /** Actualización del manifiesto (PATCH): nuevo paso de seguimiento con el texto. */

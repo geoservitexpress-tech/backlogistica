@@ -14,7 +14,11 @@ export interface PedidoListado {
   tipoOperacion: PedidoTipoOperacion | null;
   /** `pedidos.fecha_entrega` (`YYYY-MM-DD`). */
   fechaEntrega: string;
+  /** `estado_pedido.id_estado_pedido` (2=Asignado, 3=Recibido repartidor, 5=Entregado). */
+  idEstadoPedido: number;
   estadoPedido: string;
+  /** `tipo_pedido.id_tipo_pedido` (1=Normal, 2=Express). */
+  idTipoPedido: number;
   metodoRecepcion: string;
   usuarioSolicitud: string;
   usuarioRecolector: string | null;

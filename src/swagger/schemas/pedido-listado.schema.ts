@@ -24,8 +24,18 @@ export class PedidoListadoSchema {
   @ApiProperty({ example: '2026-05-20', description: 'Día programado de entrega' })
   fechaEntrega!: string;
 
-  @ApiProperty({ description: 'Nombre del estado' })
+  @ApiProperty({
+    type: 'integer',
+    example: 5,
+    description: '2=Asignado (Recibir); 3=Recibido repartidor (Aceptar→En curso); 4=En curso (confirmar entrega); 5=Entregado',
+  })
+  idEstadoPedido!: number;
+
+  @ApiProperty({ description: 'Nombre del estado', example: 'Entregado' })
   estadoPedido!: string;
+
+  @ApiProperty({ type: 'integer', example: 2, description: '1=Normal, 2=Express' })
+  idTipoPedido!: number;
 
   @ApiProperty({ description: 'Nombre del método de recepción' })
   metodoRecepcion!: string;

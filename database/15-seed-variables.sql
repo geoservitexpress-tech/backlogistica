@@ -11,7 +11,37 @@ INSERT INTO public.variable (clave, valor, tipo, descripcion) VALUES
     'CRON_ASIGNAR_REPARTIDORES_ENABLED',
     'true',
     'boolean',
-    'Si false, el cron de asignación de repartidores no ejecuta la lógica.'
+    'Interruptor maestro de los crons de asignación (Normal 20h y Express 20min).'
+  ),
+  (
+    'CRON_ASIGNAR_NORMAL_20H_ENABLED',
+    'true',
+    'boolean',
+    '20:00 Bogotá: asigna pedidos Normal (tipo 1) con fecha_entrega mañana, por zona_bogota.'
+  ),
+  (
+    'CRON_ASIGNAR_EXPRESS_20MIN_ENABLED',
+    'true',
+    'boolean',
+    'Cada 20 min (8:00–14:00 Bogotá): Express (tipo 2) y Normal pendiente del día a repartidores libres.'
+  ),
+  (
+    'ASIGNACION_TIPO_PEDIDO_NORMAL_ID',
+    '1',
+    'integer',
+    'tipo_pedido Normal (seed 13).'
+  ),
+  (
+    'ASIGNACION_TIPO_PEDIDO_EXPRESS_ID',
+    '2',
+    'integer',
+    'tipo_pedido Express (seed 13).'
+  ),
+  (
+    'ASIGNACION_ESTADOS_TERMINALES_REPARTIDOR',
+    '5,6,7',
+    'integer_list',
+    'Estados que cierran la ruta del repartidor ese día (Entregado, Cancelado, No entregado).'
   ),
   (
     'ASIGNACION_MAX_ENTREGAS_POR_REPARTIDOR_DIA',
@@ -24,6 +54,18 @@ INSERT INTO public.variable (clave, valor, tipo, descripcion) VALUES
     '2',
     'integer',
     'rol.id_rol del rol Repartidor (seed 11).'
+  ),
+  (
+    'ASIGNACION_ROL_SUPERVISOR_ID',
+    '4',
+    'integer',
+    'rol.id_rol del rol Supervisor (seed 11).'
+  ),
+  (
+    'SUPERVISOR_PEDIDOS_EN_REPARTO_ESTADOS',
+    '2,3,4',
+    'integer_list',
+    'GET /supervisor/pedidos/en-reparto: Asignado, Recibido repartidor, En curso.'
   ),
   (
     'PEDIDO_ESTADO_INICIAL_ID',
@@ -47,13 +89,19 @@ INSERT INTO public.variable (clave, valor, tipo, descripcion) VALUES
     'REPARTIDOR_PEDIDO_ESTADO_ASIGNADO_ID',
     '2',
     'integer',
-    'Estado requerido para POST /repartidor/pedidos/{id}/aceptar.'
+    'Estado requerido para POST /repartidor/pedidos/{id}/recibir (Asignado).'
+  ),
+  (
+    'REPARTIDOR_PEDIDO_ESTADO_RECIBIDO_ID',
+    '3',
+    'integer',
+    'Estado tras POST /repartidor/pedidos/{id}/recibir (Recibido por el repartidor).'
   ),
   (
     'REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID',
-    '3',
+    '4',
     'integer',
-    'Estado tras aceptar (3=Recibido por el repartidor).'
+    'Estado tras POST /repartidor/pedidos/{id}/aceptar (En curso); requerido para confirmar-entrega.'
   ),
   (
     'REPARTIDOR_PEDIDO_ESTADO_ENTREGADO_ID',

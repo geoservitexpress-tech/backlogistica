@@ -30,17 +30,21 @@ import { ListMetodosPagoUseCase } from './application/list-metodos-pago.use-case
 import { ListResultadosEntregaUseCase } from './application/list-resultados-entrega.use-case';
 import { ListPedidosRepartidorUseCase } from './application/list-pedidos-repartidor.use-case';
 import { RepartidorAceptarPedidoUseCase } from './application/repartidor-aceptar-pedido.use-case';
+import { RepartidorRecibirPedidoUseCase } from './application/repartidor-recibir-pedido.use-case';
 import { RepartidorConfirmarEntregaUseCase } from './application/repartidor-confirmar-entrega.use-case';
 import { CatalogoController } from './presentation/http/catalogo.controller';
 import { PedidosController } from './presentation/http/pedidos.controller';
 import { RepartidorPedidosController } from './presentation/http/repartidor-pedidos.controller';
+import { SupervisorPedidosController } from './presentation/http/supervisor-pedidos.controller';
+import { ListPedidosEnRepartoSupervisorUseCase } from './application/list-pedidos-en-reparto-supervisor.use-case';
+import { SupervisorUpdatePedidoUseCase } from './application/supervisor-update-pedido.use-case';
 
 /**
  * Bounded context logística: catálogos, lectura de pedidos y mapa ORM.
  */
 @Module({
   imports: [AuthModule, TypeOrmModule.forFeature([...LOGISTICA_TYPEORM_ENTITIES])],
-  controllers: [CatalogoController, PedidosController, RepartidorPedidosController],
+  controllers: [CatalogoController, PedidosController, RepartidorPedidosController, SupervisorPedidosController],
   providers: [
     TypeOrmCatalogReadRepository,
     { provide: CATALOG_READ, useExisting: TypeOrmCatalogReadRepository },
@@ -68,8 +72,11 @@ import { RepartidorPedidosController } from './presentation/http/repartidor-pedi
     ListResultadosEntregaUseCase,
     ListMetodosPagoUseCase,
     ListPedidosRepartidorUseCase,
+    RepartidorRecibirPedidoUseCase,
     RepartidorAceptarPedidoUseCase,
     RepartidorConfirmarEntregaUseCase,
+    ListPedidosEnRepartoSupervisorUseCase,
+    SupervisorUpdatePedidoUseCase,
     AsignacionRepartidoresService,
     AsignacionRepartidoresCron,
   ],

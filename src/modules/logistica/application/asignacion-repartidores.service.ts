@@ -1,14 +1,20 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { getDistance } from 'geolib';
-import { DataSource, In, IsNull } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { VAR } from '../../configuracion/variable.keys';
 import { VariablesService } from '../../configuracion/variables.service';
 import { ROL_ID_REPARTIDOR } from '../logistica-rol.constants';
 import {
   ESTADO_PEDIDO_ASIGNADO_ID,
   ESTADO_PEDIDO_CREADO_ID,
+  ESTADOS_PEDIDO_TERMINALES_REPARTIDOR,
 } from '../logistica-pedido-estados.constants';
+import {
+  TIPO_PEDIDO_EXPRESS_ID,
+  TIPO_PEDIDO_NORMAL_ID,
+} from '../logistica-tipo-pedido.constants';
+import { hoyYmdBogota, mananaYmdBogota } from './asignacion-fecha-bogota';
 import { textoDireccionColombianaMapa } from './direccion-colombiana-texto';
 import { nominatimBuscarUnaDireccion } from './nominatim-geocode';
 import { PedidoOrmEntity } from '../infrastructure/persistence/pedido.orm-entity';
@@ -16,6 +22,17 @@ import { UsuarioRolOrmEntity } from '../infrastructure/persistence/usuario-rol.o
 
 /** @deprecated Use `ESTADO_PEDIDO_ASIGNADO_ID` */
 export const ASIGNACION_DEFAULT_ESTADO_ASIGNADO_ID = ESTADO_PEDIDO_ASIGNADO_ID;
+
+export type ModoAsignacionRepartidor = 'greedy' | 'por_zona_bogota';
+
+export type ResultadoAsignacionRepartidores = {
+  asignados: number;
+  repartidores: number;
+  pedidosPendientes: number;
+  omitidosSinCupo: number;
+  modo: ModoAsignacionRepartidor;
+  etiqueta: string;
+};
 
 /** Hub de repartidor: coordenadas GPS y/o ciudad de referencia. */
 export type RepartidorHubConfig = {
@@ -115,6 +132,9 @@ function rutaNearestNeighborKm(inicio: LatLng, paradas: LatLng[]): { orden: numb
 
 /**
  * Asigna repartidor a pedidos **pendientes** y pasa a **asignado**.
+ *
+ * **Crons:** `ejecutarAsignacionNormalNocturna` (20:00, Normal mañana, por `zona_bogota`) y
+ * `ejecutarAsignacionExpressYBacklog` (cada 20 min, Express + Normal hoy, repartidores libres, greedy).
  *
  * **Kilómetros / recorrido:** con `latitud`/`longitud` en `direccion` y hubs con coordenadas (o centroide por ciudad),
  * cada pedido se asigna al repartidor que minimiza la distancia **desde su última posición** (hub → 1.ª entrega → 2.ª …),
@@ -455,68 +475,280 @@ export class AsignacionRepartidoresService {
     return { asignados, omitidosSinCupo };
   }
 
-  async ejecutar(): Promise<{
-    asignados: number;
-    repartidores: number;
-    pedidosPendientes: number;
-    omitidosSinCupo: number;
-  }> {
+  /**
+   * Agrupa por `direccion.fk_zona` (zona_bogota) y asigna lotes completos de la zona al mismo repartidor
+   * (hasta agotar cupo diario; si la zona excede cupo, continúa con otro rep de menor carga).
+   */
+  private async procesarDiaAsignacionPorZona(params: {
+    dia: string;
+    lista: PedidoOrmEntity[];
+    repIds: number[];
+    hubByRep: Map<number, RepartidorHubConfig>;
+    coordsPorDireccion: Map<number, LatLng>;
+    cargaPorRepDia: Map<string, number>;
+    maxPorDia: number;
+    idsEstadosElegibles: number[];
+    idAsignado: number;
+  }): Promise<{ asignados: number; omitidosSinCupo: number }> {
+    const {
+      dia,
+      lista,
+      repIds,
+      hubByRep,
+      coordsPorDireccion,
+      cargaPorRepDia,
+      maxPorDia,
+      idsEstadosElegibles,
+      idAsignado,
+    } = params;
+
+    const porZona = new Map<number, PedidoOrmEntity[]>();
+    for (const p of lista) {
+      const idZona = p.direccion.zonaBogota?.idZona ?? 0;
+      if (!porZona.has(idZona)) porZona.set(idZona, []);
+      porZona.get(idZona)!.push(p);
+    }
+
+    const zonasOrdenadas = [...porZona.entries()].sort((a, b) => b[1].length - a[1].length);
+    let asignados = 0;
+    let omitidosSinCupo = 0;
+
+    for (const [idZona, pedidosZona] of zonasOrdenadas) {
+      let restantes = [...pedidosZona].sort((a, b) => a.creadoEn.getTime() - b.creadoEn.getTime());
+      const ptsZona = restantes
+        .map((p) => coordsPorDireccion.get(p.direccion.idDireccion))
+        .filter((x): x is LatLng => x != null);
+      const centroZona = centroid(ptsZona);
+
+      while (restantes.length > 0) {
+        let bestR: number | null = null;
+        let bestScore = Number.POSITIVE_INFINITY;
+        let bestCupo = 0;
+
+        for (const repId of repIds) {
+          const cupoKey = `${repId}|${dia}`;
+          const ya = cargaPorRepDia.get(cupoKey) ?? 0;
+          const libre = maxPorDia - ya;
+          if (libre <= 0) continue;
+
+          const hub = hubByRep.get(repId);
+          let score = 1_000_000;
+          if (centroZona && hub?.lat != null && hub?.lng != null) {
+            score = distanciaKm({ lat: hub.lat, lng: hub.lng }, centroZona);
+          } else if (centroZona && hub?.idCiudad) {
+            const ciudadPed = restantes[0]?.direccion.ciudad.idCiudad;
+            score = hub.idCiudad === ciudadPed ? 0 : 25;
+          }
+
+          if (score < bestScore || (score === bestScore && libre > bestCupo)) {
+            bestScore = score;
+            bestR = repId;
+            bestCupo = libre;
+          }
+        }
+
+        if (bestR == null) {
+          omitidosSinCupo += restantes.length;
+          const etiquetaZona = idZona === 0 ? 'sin_zona' : `zona=${idZona}`;
+          this.logger.warn(
+            `Día ${dia} ${etiquetaZona}: ${restantes.length} pedido(s) sin cupo de repartidor.`,
+          );
+          break;
+        }
+
+        const lote = restantes.splice(0, Math.min(restantes.length, bestCupo));
+        const rutasBatch: { idPedido: number; coords: LatLng }[] = [];
+
+        for (const pedido of lote) {
+          const upd = (await this.dataSource.query(
+            `update pedidos
+             set fk_usuario_repartidor = $2::int,
+                 fk_estado_pedido = $3::int
+             where id_pedido = $1::int
+               and fk_estado_pedido = any($4::int[])
+               and fk_usuario_repartidor is null
+             returning id_pedido`,
+            [pedido.idPedido, bestR, idAsignado, idsEstadosElegibles],
+          )) as { id_pedido: number }[];
+
+          if (upd.length === 0) continue;
+
+          const dest = coordsPorDireccion.get(pedido.direccion.idDireccion);
+          if (dest) rutasBatch.push({ idPedido: pedido.idPedido, coords: dest });
+
+          const ck = `${bestR}|${dia}`;
+          cargaPorRepDia.set(ck, (cargaPorRepDia.get(ck) ?? 0) + 1);
+          asignados++;
+        }
+
+        const etiquetaZona = idZona === 0 ? 'sin_zona' : `zona=${idZona}`;
+        this.logger.log(
+          `Asignación por zona día=${dia} ${etiquetaZona} rep=${bestR} pedidos=${lote.length} (restantes_zona=${restantes.length})`,
+        );
+
+        if (rutasBatch.length > 0) {
+          const hub = hubByRep.get(bestR);
+          let inicio: LatLng | null =
+            hub?.lat != null && hub?.lng != null ? { lat: hub.lat, lng: hub.lng } : centroZona;
+          if (!inicio) inicio = rutasBatch[0]!.coords;
+          const { orden, kmTotal } = rutaNearestNeighborKm(
+            inicio,
+            rutasBatch.map((x) => x.coords),
+          );
+          const ordenIds = orden.map((i) => rutasBatch[i]!.idPedido);
+          this.logger.log(
+            `Ruta aprox. ${etiquetaZona} rep=${bestR}: orden NN=${ordenIds.join('→')}, km ≈ ${kmTotal.toFixed(2)}`,
+          );
+        }
+      }
+    }
+
+    return { asignados, omitidosSinCupo };
+  }
+
+  private async idTipoPedidoNormal(): Promise<number> {
+    return this.variables.getInt(VAR.ASIGNACION_TIPO_PEDIDO_NORMAL_ID, TIPO_PEDIDO_NORMAL_ID, { min: 1 });
+  }
+
+  private async idTipoPedidoExpress(): Promise<number> {
+    return this.variables.getInt(VAR.ASIGNACION_TIPO_PEDIDO_EXPRESS_ID, TIPO_PEDIDO_EXPRESS_ID, { min: 1 });
+  }
+
+  private async idsEstadosTerminalesRepartidor(): Promise<number[]> {
+    return this.variables.getIntList(
+      VAR.ASIGNACION_ESTADOS_TERMINALES_REPARTIDOR,
+      [...ESTADOS_PEDIDO_TERMINALES_REPARTIDOR],
+    );
+  }
+
+  private async listarRepartidores(): Promise<number[]> {
+    const idRolRep = await this.idRolRepartidor();
+    const urs = await this.dataSource.getRepository(UsuarioRolOrmEntity).find({
+      where: { idRol: idRolRep },
+    });
+    return [...new Set(urs.map((u) => u.idUsuario))];
+  }
+
+  /** Repartidores sin pedidos activos (no terminales) con `fecha_entrega` = diaYmd. */
+  private async repartidoresLibresEnFecha(repIds: number[], diaYmd: string): Promise<number[]> {
+    if (repIds.length === 0) return [];
+    const ocupados = await this.repartidoresOcupadosEnFecha(repIds, diaYmd);
+    const busy = new Set(ocupados);
+    return repIds.filter((r) => !busy.has(r));
+  }
+
+  private async repartidoresOcupadosEnFecha(repIds: number[], diaYmd: string): Promise<number[]> {
+    if (repIds.length === 0) return [];
+    const terminales = await this.idsEstadosTerminalesRepartidor();
+    const rows = (await this.dataSource.query(
+      `select distinct fk_usuario_repartidor::int as rep
+       from pedidos
+       where fk_usuario_repartidor = any($1::int[])
+         and fecha_entrega = $2::date
+         and not (fk_estado_pedido = any($3::int[]))`,
+      [repIds, diaYmd, terminales],
+    )) as { rep: number }[];
+    return rows.map((r) => r.rep);
+  }
+
+  /** Cupo activo: solo pedidos del día que aún no están en estado terminal. */
+  private async cargarCupoActivoPorRepartidorDia(
+    repIds: number[],
+  ): Promise<Map<string, number>> {
+    if (repIds.length === 0) return new Map();
+    const terminales = await this.idsEstadosTerminalesRepartidor();
+    const rows = (await this.dataSource.query(
+      `select fk_usuario_repartidor::int as rep,
+              to_char(fecha_entrega, 'YYYY-MM-DD') as dia,
+              count(*)::int as c
+       from pedidos
+       where fk_usuario_repartidor is not null
+         and fk_usuario_repartidor = any($1::int[])
+         and not (fk_estado_pedido = any($2::int[]))
+       group by fk_usuario_repartidor, fecha_entrega`,
+      [repIds, terminales],
+    )) as { rep: number; dia: string; c: number }[];
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(`${row.rep}|${row.dia}`, row.c);
+    }
+    return map;
+  }
+
+  private async cargarPedidosPendientes(params: {
+    idsEstadosElegibles: number[];
+    idTiposPedido: number[];
+    fechaEntregaYmd?: string;
+    expressOHoyNormal?: { idExpress: number; idNormal: number; hoyYmd: string };
+  }): Promise<PedidoOrmEntity[]> {
+    const qb = this.dataSource
+      .getRepository(PedidoOrmEntity)
+      .createQueryBuilder('p')
+      .innerJoinAndSelect('p.tipoPedido', 'tp')
+      .innerJoinAndSelect('p.direccion', 'd')
+      .leftJoinAndSelect('d.tipoVia', 'tv')
+      .leftJoinAndSelect('d.pais', 'pa')
+      .innerJoinAndSelect('d.ciudad', 'ci')
+      .innerJoinAndSelect('d.departamento', 'de')
+      .leftJoinAndSelect('d.zonaBogota', 'zb')
+      .where('p.fk_usuario_repartidor IS NULL')
+      .andWhere('p.fk_estado_pedido IN (:...estados)', { estados: params.idsEstadosElegibles })
+      .andWhere('p.fk_tipo_pedido IN (:...tipos)', { tipos: params.idTiposPedido });
+
+    if (params.fechaEntregaYmd) {
+      qb.andWhere('p.fecha_entrega = :fecha::date', { fecha: params.fechaEntregaYmd });
+    }
+
+    if (params.expressOHoyNormal) {
+      const { idExpress, idNormal, hoyYmd } = params.expressOHoyNormal;
+      qb.andWhere(
+        '(p.fk_tipo_pedido = :idExpress OR (p.fk_tipo_pedido = :idNormal AND p.fecha_entrega <= :hoy::date))',
+        { idExpress, idNormal, hoy: hoyYmd },
+      );
+    }
+
+    return qb.orderBy('p.creado_en', 'ASC').getMany();
+  }
+
+  private async runAsignacion(config: {
+    modo: ModoAsignacionRepartidor;
+    etiqueta: string;
+    pedidos: PedidoOrmEntity[];
+    repIds: number[];
+  }): Promise<ResultadoAsignacionRepartidores> {
+    const { modo, etiqueta, pedidos, repIds } = config;
+
+    if (repIds.length === 0) {
+      this.logger.warn(`${etiqueta}: no hay repartidores (usuario_rol / ASIGNACION_ROL_REPARTIDOR_ID).`);
+      return {
+        asignados: 0,
+        repartidores: 0,
+        pedidosPendientes: pedidos.length,
+        omitidosSinCupo: 0,
+        modo,
+        etiqueta,
+      };
+    }
+
+    if (pedidos.length === 0) {
+      this.logger.log(`${etiqueta}: 0 pedidos pendientes de asignar.`);
+      return {
+        asignados: 0,
+        repartidores: repIds.length,
+        pedidosPendientes: 0,
+        omitidosSinCupo: 0,
+        modo,
+        etiqueta,
+      };
+    }
+
     const idAsignado = await this.idEstadoAsignado();
     const idsEstadosElegibles = await this.idsEstadosElegiblesAsignacion();
     const hubs = await this.hubs();
     const hubByRep = new Map(hubs.map((h) => [h.idUsuario, h]));
-
-    const idRolRep = await this.idRolRepartidor();
-
-    const urs = await this.dataSource.getRepository(UsuarioRolOrmEntity).find({
-      where: { idRol: idRolRep },
-    });
-    const repIds = [...new Set(urs.map((u) => u.idUsuario))];
-    if (repIds.length === 0) {
-      this.logger.warn(
-        `No hay usuarios en usuario_rol con id_rol=${idRolRep}. ` +
-          'Revise ASIGNACION_ROL_REPARTIDOR_ID en public.variable (debe coincidir con rol REPARTIDOR en la tabla rol).',
-      );
-      return { asignados: 0, repartidores: 0, pedidosPendientes: 0, omitidosSinCupo: 0 };
-    }
-
-    const pedidos = await this.dataSource.getRepository(PedidoOrmEntity).find({
-      where: {
-        usuarioRepartidor: IsNull(),
-        estadoPedido: { idEstadoPedido: In(idsEstadosElegibles) },
-      },
-      relations: [
-        'direccion',
-        'direccion.tipoVia',
-        'direccion.pais',
-        'direccion.ciudad',
-        'direccion.departamento',
-      ],
-      order: { creadoEn: 'ASC' },
-    });
-
-    if (pedidos.length === 0) {
-      this.logger.log(
-        `Asignación repartidores: 0 pedidos en estados elegibles (${idsEstadosElegibles.join(', ')}) sin repartidor.`,
-      );
-      return { asignados: 0, repartidores: repIds.length, pedidosPendientes: 0, omitidosSinCupo: 0 };
-    }
-
     const maxPorDia = await this.maxEntregasPorRepartidorDia();
 
-    const rowsCupo = (await this.dataSource.query(
-      `select fk_usuario_repartidor::int as rep, to_char(fecha_entrega, 'YYYY-MM-DD') as dia, count(*)::int as c
-       from pedidos
-       where fk_usuario_repartidor is not null
-         and fk_usuario_repartidor = any($1::int[])
-       group by fk_usuario_repartidor, fecha_entrega`,
-      [repIds],
-    )) as { rep: number; dia: string; c: number }[];
-
-    const cargaPorRepDia = new Map<string, number>();
-    for (const row of rowsCupo) {
-      cargaPorRepDia.set(`${row.rep}|${row.dia}`, row.c);
-    }
+    const cargaPorRepDia = await this.cargarCupoActivoPorRepartidorDia(repIds);
 
     const dirIds = [...new Set(pedidos.map((p) => p.direccion.idDireccion))];
     const coordsPorDireccion = await this.cargarCoordenadasDirecciones(dirIds);
@@ -529,7 +761,7 @@ export class AsignacionRepartidoresService {
         .slice(0, 5)
         .map((id) => textoDireccionColombianaMapa(dirPorId.get(id)!));
       this.logger.warn(
-        `Asignación: ${sinGpsIds.length} dirección(es) sin lat/long; se usa distancia por proxy (ciudad/hub). Ejemplos (tipo vía + nomenclatura + ciudad/depto/país): ${ejemplos.join(' | ')}`,
+        `${etiqueta}: ${sinGpsIds.length} dirección(es) sin GPS; proxy ciudad/hub. Ej.: ${ejemplos.join(' | ')}`,
       );
     }
 
@@ -544,7 +776,7 @@ export class AsignacionRepartidoresService {
     let omitidosSinCupo = 0;
     for (const dia of [...byDay.keys()].sort()) {
       const lista = byDay.get(dia)!;
-      const r = await this.procesarDiaAsignacion({
+      const base = {
         dia,
         lista,
         repIds,
@@ -554,15 +786,118 @@ export class AsignacionRepartidoresService {
         maxPorDia,
         idsEstadosElegibles,
         idAsignado,
-      });
+      };
+      const r =
+        modo === 'por_zona_bogota'
+          ? await this.procesarDiaAsignacionPorZona(base)
+          : await this.procesarDiaAsignacion(base);
       asignados += r.asignados;
       omitidosSinCupo += r.omitidosSinCupo;
     }
 
     this.logger.log(
-      `Asignación repartidores: estados_origen=[${idsEstadosElegibles.join(',')}] → asignado=${idAsignado} pedidos=${pedidos.length} asignados=${asignados} omitidos_sin_cupo=${omitidosSinCupo} max_por_rep_dia=${maxPorDia} repartidores=${repIds.length} hubs_config=${hubs.length} direcciones_con_gps=${coordsPorDireccion.size} nominatim=${geoNom.aciertos}/${geoNom.intentadas} (distancia: geolib / línea recta)`,
+      `${etiqueta}: modo=${modo} estados=[${idsEstadosElegibles.join(',')}]→${idAsignado} pedidos=${pedidos.length} asignados=${asignados} omitidos=${omitidosSinCupo} reps=${repIds.length} nominatim=${geoNom.aciertos}/${geoNom.intentadas}`,
     );
 
-    return { asignados, repartidores: repIds.length, pedidosPendientes: pedidos.length, omitidosSinCupo };
+    return {
+      asignados,
+      repartidores: repIds.length,
+      pedidosPendientes: pedidos.length,
+      omitidosSinCupo,
+      modo,
+      etiqueta,
+    };
+  }
+
+  /**
+   * Cron 20:00: pedidos **Normal** con `fecha_entrega` = mañana (Bogotá), agrupados por `zona_bogota`.
+   */
+  async ejecutarAsignacionNormalNocturna(): Promise<ResultadoAsignacionRepartidores> {
+    const idNormal = await this.idTipoPedidoNormal();
+    const fechaManana = mananaYmdBogota();
+    const idsEstadosElegibles = await this.idsEstadosElegiblesAsignacion();
+    const repIds = await this.listarRepartidores();
+    const pedidos = await this.cargarPedidosPendientes({
+      idsEstadosElegibles,
+      idTiposPedido: [idNormal],
+      fechaEntregaYmd: fechaManana,
+    });
+
+    this.logger.log(
+      `Asignación nocturna Normal: fecha_entrega=${fechaManana} tipo=${idNormal} candidatos=${pedidos.length}`,
+    );
+
+    return this.runAsignacion({
+      modo: 'por_zona_bogota',
+      etiqueta: `normal-20h-${fechaManana}`,
+      pedidos,
+      repIds,
+    });
+  }
+
+  /**
+   * Cron cada 20 min: repartidores libres hoy reciben **Express** y **Normal** pendientes (hoy o atrasados).
+   */
+  async ejecutarAsignacionExpressYBacklog(): Promise<ResultadoAsignacionRepartidores> {
+    const idNormal = await this.idTipoPedidoNormal();
+    const idExpress = await this.idTipoPedidoExpress();
+    const hoy = hoyYmdBogota();
+    const idsEstadosElegibles = await this.idsEstadosElegiblesAsignacion();
+    const todosReps = await this.listarRepartidores();
+    const ocupados = await this.repartidoresOcupadosEnFecha(todosReps, hoy);
+    const repIds = todosReps.filter((r) => !ocupados.includes(r));
+
+    const pedidos = await this.cargarPedidosPendientes({
+      idsEstadosElegibles,
+      idTiposPedido: [idNormal, idExpress],
+      expressOHoyNormal: { idExpress, idNormal, hoyYmd: hoy },
+    });
+
+    const nExpress = pedidos.filter((p) => p.tipoPedido?.idTipoPedido === idExpress).length;
+    const nNormal = pedidos.length - nExpress;
+
+    this.logger.log(
+      `Asignación express: hoy=${hoy} estados_elegibles=[${idsEstadosElegibles.join(',')}] ` +
+        `reps_total=${todosReps.length} reps_libres=${repIds.length} reps_ocupados=[${ocupados.join(',')}] ` +
+        `candidatos=${pedidos.length} (express=${nExpress} normal_hoy_o_atrasado=${nNormal}) ` +
+        `tipos express=${idExpress} normal=${idNormal}`,
+    );
+
+    if (todosReps.length === 0) {
+      this.logger.warn(
+        'Sin repartidores: revise usuario_rol y ASIGNACION_ROL_REPARTIDOR_ID (seed rol Repartidor = 2).',
+      );
+    } else if (repIds.length === 0 && pedidos.length > 0) {
+      this.logger.warn(
+        `Hay ${pedidos.length} pedido(s) pendiente(s) pero ningún repartidor libre hoy (todos con entregas activas).`,
+      );
+    } else if (pedidos.length === 0) {
+      this.logger.log(
+        'Sin candidatos: pedidos deben estar en estado Creado (o ASIGNACION_ESTADOS_PEDIDO_ELEGIBLES), sin repartidor, tipo Express o Normal con fecha_entrega <= hoy.',
+      );
+    }
+
+    return this.runAsignacion({
+      modo: 'greedy',
+      etiqueta: `express-20min-${hoy}`,
+      pedidos,
+      repIds,
+    });
+  }
+
+  /** @deprecated Use `ejecutarAsignacionNormalNocturna` o `ejecutarAsignacionExpressYBacklog`. */
+  async ejecutar(): Promise<{
+    asignados: number;
+    repartidores: number;
+    pedidosPendientes: number;
+    omitidosSinCupo: number;
+  }> {
+    const r = await this.ejecutarAsignacionExpressYBacklog();
+    return {
+      asignados: r.asignados,
+      repartidores: r.repartidores,
+      pedidosPendientes: r.pedidosPendientes,
+      omitidosSinCupo: r.omitidosSinCupo,
+    };
   }
 }
