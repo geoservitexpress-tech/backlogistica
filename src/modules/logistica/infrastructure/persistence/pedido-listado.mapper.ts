@@ -58,5 +58,7 @@ export function pedidoOrmToListado(row: PedidoOrmEntity): PedidoListado {
     fragil: row.fragil ?? false,
     observacionesManifiesto: row.observacionesManifiesto ?? null,
     fotosPaqueteUrls: row.fotosPaqueteUrls ?? null,
+    pagadoPorRemitente: row.pagadoPorRemitente ?? false,
+    precio: row.precio ?? 0,
   };
 }

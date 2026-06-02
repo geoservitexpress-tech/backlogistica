@@ -34,4 +34,6 @@ export interface PedidoListado {
   fragil: boolean;
   observacionesManifiesto: string | null;
   fotosPaqueteUrls: string[] | null;
+  pagadoPorRemitente: boolean;
+  precio: number;
 }
