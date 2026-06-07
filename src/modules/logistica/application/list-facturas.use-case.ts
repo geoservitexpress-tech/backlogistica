@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable } from '@ne
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import type { ListFacturasFilter, FacturaReadPort } from '../domain/ports/factura-read.port';
+import { resolverPaginacion } from '../domain/paginacion';
 import { FACTURA_READ } from '../facturas.tokens';
 import { usuarioEsAdministrador } from '../infrastructure/persistence/usuario-rol.helpers';
 import type { ListFacturasQueryDto } from '../presentation/http/dto/list-facturas.query.dto';
@@ -25,11 +26,15 @@ export class ListFacturasUseCase {
       assertFechaValida(query.fecha);
     }
 
+    const { page, limit } = resolverPaginacion(query);
     const esAdmin = await usuarioEsAdministrador(this.dataSource.manager, idUsuario);
     const filter: ListFacturasFilter = {
+      page,
+      limit,
       ...(query.idPedido != null && { idPedido: query.idPedido }),
       ...(query.idEstadoFactura != null && { idEstadoFactura: query.idEstadoFactura }),
       ...(query.fecha && !query.idFactura && { fecha: query.fecha }),
+      ...(query.idFactura != null && { idFactura: query.idFactura }),
     };
 
     if (esAdmin) {
@@ -41,11 +46,6 @@ export class ListFacturasUseCase {
         throw new ForbiddenException('Solo puede consultar sus propias facturas');
       }
       filter.idCliente = idUsuario;
-    }
-
-    if (query.idFactura != null) {
-      const one = await this.facturas.findFacturaById(query.idFactura, filter.idCliente);
-      return one ? [one] : [];
     }
 
     return this.facturas.listFacturas(filter);

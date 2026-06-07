@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { resolverPaginacion } from '../domain/paginacion';
 import type { PagosRepartidorPort } from '../domain/ports/pagos-repartidor.port';
 import { PAGOS_REPARTIDOR } from '../pagos-repartidor.tokens';
 import type { ListRepartidoresPagoQueryDto } from '../presentation/http/dto/list-repartidores-pago.query.dto';
@@ -25,9 +26,10 @@ export class ListRepartidoresPagoUseCase {
 
   execute(query: ListRepartidoresPagoQueryDto) {
     if (query.fecha) assertFechaYmd(query.fecha);
+    const { page, limit } = resolverPaginacion(query);
     return this.pagos.listRepartidores({
-      page: query.page ?? 1,
-      limit: query.limit ?? 4,
+      page,
+      limit,
       ...(query.search?.trim() && { search: query.search.trim() }),
       ...(query.estado && { estado: query.estado }),
       fecha: query.fecha ?? hoyYmdBogota(),

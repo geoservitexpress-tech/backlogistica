@@ -1,9 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { ROL_ID_REPARTIDOR } from '../../../logistica-rol.constants';
+import { PaginacionQueryDto } from './paginacion.query.dto';
 
-export class ListUsuariosAdminQueryDto {
+export class ListUsuariosAdminQueryDto extends PaginacionQueryDto {
   @ApiPropertyOptional({ description: 'Nombre, apellido, correo o documento', example: 'maria' })
   @IsOptional()
   @IsString()
@@ -19,19 +20,4 @@ export class ListUsuariosAdminQueryDto {
   @IsInt()
   @Min(1)
   idRol?: number;
-
-  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number;
-
-  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit?: number;
 }

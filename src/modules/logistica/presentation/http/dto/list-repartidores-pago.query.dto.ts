@@ -1,8 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
+import { PaginacionQueryDto } from './paginacion.query.dto';
 
-export class ListRepartidoresPagoQueryDto {
+export class ListRepartidoresPagoQueryDto extends PaginacionQueryDto {
   @ApiPropertyOptional({ description: 'Nombre, documento o código RP-8842', example: 'Juan' })
   @IsOptional()
   @IsString()
@@ -20,19 +20,4 @@ export class ListRepartidoresPagoQueryDto {
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   fecha?: string;
-
-  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number;
-
-  @ApiPropertyOptional({ type: 'integer', default: 4, minimum: 1, maximum: 50 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit?: number;
 }

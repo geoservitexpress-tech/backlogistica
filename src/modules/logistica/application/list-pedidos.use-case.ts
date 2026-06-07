@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { ListPedidosFilter, PedidoReadPort } from '../domain/ports/pedido-read.port';
+import { resolverPaginacion } from '../domain/paginacion';
 import { PEDIDO_READ } from '../pedidos.tokens';
 
 function assertFechaUtcValida(fecha: string): void {
@@ -16,14 +17,20 @@ function assertFechaUtcValida(fecha: string): void {
 export class ListPedidosUseCase {
   constructor(@Inject(PEDIDO_READ) private readonly pedidos: PedidoReadPort) {}
 
-  async execute(filter?: ListPedidosFilter) {
+  async execute(filter?: Omit<ListPedidosFilter, 'page' | 'limit'> & { page?: number; limit?: number }) {
+    const { page, limit } = resolverPaginacion(filter);
     if (filter?.fecha) {
       assertFechaUtcValida(filter.fecha);
     }
-    if (filter?.idPedido) {
-      const one = await this.pedidos.findPedidoById(filter.idPedido);
-      return one ? [one] : [];
-    }
-    return this.pedidos.listPedidos(filter);
+    return this.pedidos.listPedidos({
+      page,
+      limit,
+      ...(filter?.fecha && { fecha: filter.fecha }),
+      ...(filter?.fechaEntrega && { fechaEntrega: filter.fechaEntrega }),
+      ...(filter?.idUsuario && { idUsuario: filter.idUsuario }),
+      ...(filter?.idRepartidor != null && { idRepartidor: filter.idRepartidor }),
+      ...(filter?.idsEstadoPedido?.length && { idsEstadoPedido: filter.idsEstadoPedido }),
+      ...(filter?.idPedido != null && { idPedido: filter.idPedido }),
+    });
   }
 }

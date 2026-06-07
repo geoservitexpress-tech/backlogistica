@@ -81,3 +81,20 @@ export class TransaccionRecienteSchema {
   @ApiProperty({ example: '2026-05-23T20:46:08.816Z' })
   creadoEn!: string;
 }
+
+export class TransaccionRecientePaginadoSchema {
+  @ApiProperty({ example: 120 })
+  total!: number;
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 20 })
+  limit!: number;
+
+  @ApiProperty({ example: 6 })
+  totalPaginas!: number;
+
+  @ApiProperty({ type: TransaccionRecienteSchema, isArray: true })
+  items!: TransaccionRecienteSchema[];
+}

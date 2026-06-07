@@ -1,7 +1,10 @@
+import type { Paginado } from '../paginacion';
 import type { PedidoListado } from '../read-models/pedido-listado';
 
 /** Filtros opcionales para listados (solo lectura). */
 export interface ListPedidosFilter {
+  page: number;
+  limit: number;
   /** Día de `pedidos.creado_en`, formato `YYYY-MM-DD`. */
   fecha?: string;
   /** Día de `pedidos.fecha_entrega`, formato `YYYY-MM-DD`. */
@@ -16,7 +19,7 @@ export interface ListPedidosFilter {
 }
 
 export interface PedidoReadPort {
-  listPedidos(filter?: ListPedidosFilter): Promise<PedidoListado[]>;
+  listPedidos(filter: ListPedidosFilter): Promise<Paginado<PedidoListado>>;
   findPedidoById(id: number): Promise<PedidoListado | null>;
   /** `num_guia` único (ej. `BL-20260509-19B426`). */
   findPedidoByNumGuia(numGuia: string): Promise<PedidoListado | null>;

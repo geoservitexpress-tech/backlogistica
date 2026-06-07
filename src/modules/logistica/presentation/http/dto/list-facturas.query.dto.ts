@@ -6,12 +6,13 @@ import {
   SWAGGER_EJEMPLO_ID_USUARIO,
 } from '../../../../../swagger/swagger-ejemplos';
 import { ESTADO_FACTURA_CREADA_ID } from '../../../logistica-factura-estados.constants';
+import { PaginacionQueryDto } from './paginacion.query.dto';
 
-export class ListFacturasQueryDto {
+export class ListFacturasQueryDto extends PaginacionQueryDto {
   @ApiPropertyOptional({
     type: 'integer',
     description:
-      'Devuelve **como máximo una** factura con ese `id_factura` (array de 0 o 1 elemento). ' +
+      'Filtra por `factura.id_factura`. La respuesta paginada tendrá como máximo un registro en `items`. ' +
       'Para un solo objeto y 404 si no existe, use **GET /facturas/{id}**.',
     example: 1,
   })
@@ -44,7 +45,7 @@ export class ListFacturasQueryDto {
   idEstadoFactura?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtra por día de `factura.creado_en` (formato YYYY-MM-DD). No combinable con `idFactura`.',
+    description: 'Filtra por día de `factura.creado_en` (formato YYYY-MM-DD).',
     example: '2026-05-23',
   })
   @IsOptional()

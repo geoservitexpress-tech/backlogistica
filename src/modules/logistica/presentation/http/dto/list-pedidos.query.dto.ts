@@ -2,12 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Matches, Min } from 'class-validator';
 import { SWAGGER_EJEMPLO_ID_PEDIDO, SWAGGER_EJEMPLO_ID_USUARIO } from '../../../../../swagger/swagger-ejemplos';
+import { PaginacionQueryDto } from './paginacion.query.dto';
 
-export class ListPedidosQueryDto {
+export class ListPedidosQueryDto extends PaginacionQueryDto {
   @ApiPropertyOptional({
     type: 'integer',
     description:
-      'Devuelve **como máximo un** pedido con ese `pedidos.id_pedido` (array de 0 o 1 elemento). ' +
+      'Filtra por `pedidos.id_pedido`. La respuesta paginada tendrá como máximo un registro en `items`. ' +
       'Para un solo objeto y 404 si no existe, use **GET /pedidos/{id}**.',
     example: SWAGGER_EJEMPLO_ID_PEDIDO,
   })
@@ -18,7 +19,7 @@ export class ListPedidosQueryDto {
   idPedido?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtra por día de `creado_en` (formato YYYY-MM-DD). No combinable con `idPedido`.',
+    description: 'Filtra por día de `creado_en` (formato YYYY-MM-DD).',
     example: '2026-05-10',
   })
   @IsOptional()

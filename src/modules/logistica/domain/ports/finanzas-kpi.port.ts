@@ -1,6 +1,7 @@
 import type {
   ListTransaccionesRecientesFilter,
   TransaccionReciente,
+  TransaccionesRecientesPaginado,
 } from '../read-models/transaccion-reciente';
 
 export type FinanzasPeriodoResumen = {
@@ -40,5 +41,7 @@ export interface FinanzasKpiPort {
     tarifaPorEntrega: number;
     pagoFijoProrrateado: number;
   }>;
-  listTransaccionesRecientes(filter: ListTransaccionesRecientesFilter): Promise<TransaccionReciente[]>;
+  listTransaccionesRecientes(
+    filter: ListTransaccionesRecientesFilter,
+  ): Promise<TransaccionesRecientesPaginado>;
 }

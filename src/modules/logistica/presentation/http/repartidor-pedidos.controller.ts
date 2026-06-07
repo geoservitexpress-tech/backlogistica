@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -39,7 +40,7 @@ import { ListPedidosRepartidorUseCase } from '../../application/list-pedidos-rep
 import { RepartidorAceptarPedidoUseCase } from '../../application/repartidor-aceptar-pedido.use-case';
 import { RepartidorRecibirPedidoUseCase } from '../../application/repartidor-recibir-pedido.use-case';
 import { RepartidorConfirmarEntregaUseCase } from '../../application/repartidor-confirmar-entrega.use-case';
-import { PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
+import { PedidoListadoPaginadoSchema, PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
 import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import {
   ESTADO_PEDIDO_ASIGNADO_ID,
@@ -48,9 +49,10 @@ import {
   ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
 } from '../../logistica-pedido-estados.constants';
 import { ConfirmarEntregaRepartidorBodyDto } from './dto/confirmar-entrega-repartidor.body.dto';
+import { PaginacionQueryDto } from './dto/paginacion.query.dto';
 
 @ApiTags('Repartidor')
-@ApiExtraModels(ConfirmarEntregaRepartidorBodyDto, PedidoListadoSchema)
+@ApiExtraModels(ConfirmarEntregaRepartidorBodyDto, PedidoListadoPaginadoSchema)
 @ApiBearerAuth('supabase-jwt')
 @ApiUnauthorizedResponse({
   description:
@@ -77,13 +79,17 @@ export class RepartidorPedidosController {
       `1. Cron → **Asignado** (**${ESTADO_PEDIDO_ASIGNADO_ID}**)\n` +
       `2. \`POST …/recibir\` → **Recibido repartidor** (**${ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID}**)\n` +
       `3. \`POST …/aceptar\` → **En curso** (**${ESTADO_PEDIDO_EN_CURSO_ID}**)\n` +
-      `4. \`POST …/confirmar-entrega\` → **Entregado** (**${ESTADO_PEDIDO_ENTREGADO_ID}**)`,
+      `4. \`POST …/confirmar-entrega\` → **Entregado** (**${ESTADO_PEDIDO_ENTREGADO_ID}**)\n\n` +
+      'Paginación: `page`, `limit`, `totalPaginas` en la respuesta.',
   })
-  @ApiOkResponse({ type: PedidoListadoSchema, isArray: true })
+  @ApiOkResponse({ type: PedidoListadoPaginadoSchema })
   @ApiForbiddenResponse({ description: 'El usuario no tiene rol REPARTIDOR' })
-  async listar(@CurrentSupabaseUser() jwt: SupabaseJwtPayload) {
+  async listar(
+    @CurrentSupabaseUser() jwt: SupabaseJwtPayload,
+    @Query() query: PaginacionQueryDto,
+  ) {
     const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
-    return this.listMisPedidos.execute(idRepartidor);
+    return this.listMisPedidos.execute(idRepartidor, query);
   }
 
   @Post(':id/recibir')

@@ -9,8 +9,11 @@ import {
   ESTADO_FACTURA_SALDO_A_FAVOR_ID,
 } from '../../logistica-factura-estados.constants';
 import { ESTADO_PEDIDO_ENTREGADO_ID } from '../../logistica-pedido-estados.constants';
-import type { ListTransaccionesRecientesFilter } from '../../domain/read-models/transaccion-reciente';
-import type { TransaccionReciente } from '../../domain/read-models/transaccion-reciente';
+import type {
+  ListTransaccionesRecientesFilter,
+  TransaccionesRecientesPaginado,
+} from '../../domain/read-models/transaccion-reciente';
+import { buildPaginado } from '../../domain/paginacion';
 import { FacturaOrmEntity } from './factura.orm-entity';
 import { facturaOrmToTransaccionReciente } from './transaccion-reciente.mapper';
 
@@ -119,14 +122,16 @@ export class TypeOrmFinanzasKpiRepository implements FinanzasKpiPort {
 
   async listTransaccionesRecientes(
     filter: ListTransaccionesRecientesFilter,
-  ): Promise<TransaccionReciente[]> {
+  ): Promise<TransaccionesRecientesPaginado> {
     try {
+      const offset = (filter.page - 1) * filter.limit;
       const qb = this.facturaRepo
         .createQueryBuilder('f')
         .innerJoinAndSelect('f.cliente', 'c')
         .innerJoinAndSelect('f.pedido', 'p')
         .innerJoinAndSelect('f.estadoFactura', 'ef')
         .orderBy('f.creadoEn', 'DESC')
+        .skip(offset)
         .take(filter.limit);
 
       if (filter.desdeUtc) {
@@ -136,14 +141,19 @@ export class TypeOrmFinanzasKpiRepository implements FinanzasKpiPort {
         qb.andWhere('f.creado_en < :hasta', { hasta: filter.hastaExclusiveUtc });
       }
 
-      const rows = await qb.getMany();
-      return rows.map(facturaOrmToTransaccionReciente);
+      const [rows, total] = await qb.getManyAndCount();
+      return buildPaginado(
+        rows.map(facturaOrmToTransaccionReciente),
+        total,
+        filter.page,
+        filter.limit,
+      );
     } catch (e) {
       if (e instanceof QueryFailedError) {
         const code = (e.driverError as { code?: string } | undefined)?.code;
         if (code === '42P01' || code === '42703') {
-          this.logger.warn('Tabla factura no disponible para transacciones recientes; retornando []');
-          return [];
+          this.logger.warn('Tabla factura no disponible para transacciones recientes; retornando vacío');
+          return buildPaginado([], 0, filter.page, filter.limit);
         }
       }
       throw e;

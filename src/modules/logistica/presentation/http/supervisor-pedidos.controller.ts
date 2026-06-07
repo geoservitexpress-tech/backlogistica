@@ -25,7 +25,7 @@ import {
 } from '@nestjs/swagger';
 import { SupervisorRoleGuard } from '../../../auth/guards/supervisor-role.guard';
 import { SupabaseJwtGuard } from '../../../auth/guards/supabase-jwt.guard';
-import { PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
+import { PedidoListadoPaginadoSchema, PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
 import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import {
   ESTADO_PEDIDO_ASIGNADO_ID,
@@ -63,16 +63,14 @@ export class SupervisorPedidosController {
     description:
       'Lista pedidos con `fecha_entrega` en el día indicado (por defecto **hoy**, America/Bogota) ' +
       `y estado en reparto (**${ESTADO_PEDIDO_ASIGNADO_ID}** Asignado, **${ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID}** Recibido, **${ESTADO_PEDIDO_EN_CURSO_ID}** En curso). ` +
-      'Configurable en `public.variable` → `SUPERVISOR_PEDIDOS_EN_REPARTO_ESTADOS`.',
+      'Configurable en `public.variable` → `SUPERVISOR_PEDIDOS_EN_REPARTO_ESTADOS`. ' +
+      'Paginación: `page`, `limit`, `totalPaginas` en la respuesta.',
   })
-  @ApiOkResponse({ type: PedidoListadoSchema, isArray: true })
+  @ApiOkResponse({ type: PedidoListadoPaginadoSchema })
   @ApiBadRequestResponse({ description: '`fecha` inválida' })
   @ApiForbiddenResponse({ description: 'Usuario sin rol SUPERVISOR' })
   listarEnReparto(@Query() query: ListPedidosSupervisorQueryDto) {
-    return this.listEnReparto.execute({
-      fecha: query.fecha,
-      idRepartidor: query.idRepartidor,
-    });
+    return this.listEnReparto.execute(query);
   }
 
   @Patch(':id')

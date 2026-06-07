@@ -32,6 +32,7 @@ import { ListFacturasUseCase } from '../../application/list-facturas.use-case';
 import { PagarFacturaUseCase } from '../../application/pagar-factura.use-case';
 import {
   EJEMPLO_PAGAR_FACTURA_BODY,
+  FacturaListadoPaginadoSchema,
   FacturaListadoSchema,
 } from '../../../../swagger/schemas/factura-listado.schema';
 import { ListFacturasQueryDto } from './dto/list-facturas.query.dto';
@@ -58,10 +59,11 @@ export class FacturasController {
     summary: 'Listar facturas',
     description:
       'Facturas del cliente autenticado (**Cliente**) o todas con filtros (**Administrador**). ' +
-      'Cada pedido genera una factura al crearse. Filtros: `idFactura`, `idPedido`, `idEstadoFactura`, `fecha` (día de creación). ' +
+      'Cada pedido genera una factura al crearse. Filtros: `idFactura`, `idPedido`, `idEstadoFactura`, `fecha`. ' +
+      'Paginación: `page`, `limit`, `totalPaginas` en la respuesta. ' +
       'Estados: **GET /catalogo/estados-factura**.',
   })
-  @ApiOkResponse({ type: FacturaListadoSchema, isArray: true })
+  @ApiOkResponse({ type: FacturaListadoPaginadoSchema })
   @ApiBadRequestResponse({ description: 'Parámetros de query inválidos' })
   @ApiForbiddenResponse({ description: 'Cliente intentando filtrar facturas de otro usuario' })
   async list(@CurrentSupabaseUser() jwt: SupabaseJwtPayload, @Query() query: ListFacturasQueryDto) {

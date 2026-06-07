@@ -1,22 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import { Matches } from 'class-validator';
+import { IsOptional } from 'class-validator';
+import { PaginacionQueryDto } from './paginacion.query.dto';
 
-export class ListTransaccionesRecientesQueryDto {
-  @ApiPropertyOptional({
-    type: 'integer',
-    default: 5,
-    minimum: 1,
-    maximum: 50,
-    description: 'Cantidad de filas (dashboard: 5; enlace "Ver todo": subir a 50).',
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit?: number;
-
+export class ListTransaccionesRecientesQueryDto extends PaginacionQueryDto {
   @ApiPropertyOptional({
     description: 'Filtra por día de creación de la factura (inicio, Colombia).',
     example: '2026-05-01',

@@ -18,6 +18,7 @@ import {
 import {
   IngresosTotalesKpiSchema,
   PagoPersonalKpiSchema,
+  TransaccionRecientePaginadoSchema,
   TransaccionRecienteSchema,
   UtilidadBrutaKpiSchema,
 } from '../../../../swagger/schemas/finanzas-kpi.schema';
@@ -78,10 +79,10 @@ export class AdminFinanzasController {
   @ApiOperation({
     summary: 'Transacciones recientes (tabla dashboard)',
     description:
-      'Últimas facturas ordenadas por `creado_en` descendente. Solo datos de lectura: `numeroFactura`, `numGuia`, `cliente`, `valor`. ' +
-      'Default `limit=5` para el widget; use `limit=50` para "Ver todo". Filtro opcional por periodo.',
+      'Facturas ordenadas por `creado_en` descendente. Paginación `page` + `limit` (default 20); respuesta con `totalPaginas`. ' +
+      'Filtro opcional por periodo (`fechaDesde` / `fechaHasta`).',
   })
-  @ApiOkResponse({ type: TransaccionRecienteSchema, isArray: true })
+  @ApiOkResponse({ type: TransaccionRecientePaginadoSchema })
   getTransaccionesRecientes(@Query() query: ListTransaccionesRecientesQueryDto) {
     return this.transaccionesRecientes.execute(query);
   }

@@ -1,3 +1,5 @@
+import type { Paginado } from '../paginacion';
+
 export type UsuarioRolResumen = {
   idRol: number;
   nombre: string;
@@ -16,13 +18,7 @@ export type UsuarioAdminListado = {
   roles: UsuarioRolResumen[];
 };
 
-export type UsuarioAdminListadoPaginado = {
-  total: number;
-  page: number;
-  limit: number;
-  totalPaginas: number;
-  items: UsuarioAdminListado[];
-};
+export type UsuarioAdminListadoPaginado = Paginado<UsuarioAdminListado>;
 
 export type ListUsuariosAdminFilter = {
   page: number;

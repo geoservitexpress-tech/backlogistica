@@ -6,6 +6,7 @@ import { Between, DataSource, FindOptionsWhere, In, QueryFailedError, Repository
 import type { PedidoListado } from '../../domain/read-models/pedido-listado';
 import type { ListPedidosFilter } from '../../domain/ports/pedido-read.port';
 import { PedidoReadPort } from '../../domain/ports/pedido-read.port';
+import { buildPaginado, type Paginado } from '../../domain/paginacion';
 import { pedidoOrmToListado } from './pedido-listado.mapper';
 import { PEDIDO_RELATIONS } from './pedido.orm-relations';
 import { PedidoOrmEntity } from './pedido.orm-entity';
@@ -95,60 +96,70 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
     }
   }
 
-  async listPedidos(filter?: ListPedidosFilter): Promise<PedidoListado[]> {
-  const base = {
-    relations: [...PEDIDO_RELATIONS],
-    order: { creadoEn: 'DESC' as const },
-  };
+  async listPedidos(filter: ListPedidosFilter): Promise<Paginado<PedidoListado>> {
+    const base = {
+      relations: [...PEDIDO_RELATIONS],
+      order: { creadoEn: 'DESC' as const },
+    };
 
-  const t0 = Date.now();
-  const tzModo =
-    (await this.variables.getText(VAR.LIST_PEDIDOS_FECHA_TZ, 'America/Bogota')).trim().toUpperCase() === 'UTC'
-      ? 'UTC'
-      : 'America/Bogota';
-  const filtroDesc = [
-    filter?.fecha ? `creado=${filter.fecha} tz=${tzModo}` : null,
-    filter?.fechaEntrega ? `fecha_entrega=${filter.fechaEntrega}` : null,
-    filter?.idsEstadoPedido?.length ? `estados=${filter.idsEstadoPedido.join(',')}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ') || 'sin filtro fecha';
+    const offset = (filter.page - 1) * filter.limit;
+    const t0 = Date.now();
+    const tzModo =
+      (await this.variables.getText(VAR.LIST_PEDIDOS_FECHA_TZ, 'America/Bogota')).trim().toUpperCase() === 'UTC'
+        ? 'UTC'
+        : 'America/Bogota';
+    const filtroDesc = [
+      filter.fecha ? `creado=${filter.fecha} tz=${tzModo}` : null,
+      filter.fechaEntrega ? `fecha_entrega=${filter.fechaEntrega}` : null,
+      filter.idsEstadoPedido?.length ? `estados=${filter.idsEstadoPedido.join(',')}` : null,
+      filter.idPedido ? `id_pedido=${filter.idPedido}` : null,
+    ]
+      .filter(Boolean)
+      .join(' ') || 'sin filtro fecha';
 
-  const where: FindOptionsWhere<PedidoOrmEntity> = {};
-  if (filter?.idUsuario) {
-    where.usuarioSolicitud = { idUsuario: filter.idUsuario };
-  }
-  if (filter?.idRepartidor) {
-    where.usuarioRepartidor = { idUsuario: filter.idRepartidor };
-  }
-  if (filter?.fechaEntrega) {
-    where.fechaEntrega = new Date(`${filter.fechaEntrega}T12:00:00.000Z`);
-  }
-  if (filter?.idsEstadoPedido?.length) {
-    where.estadoPedido = { idEstadoPedido: In(filter.idsEstadoPedido) };
-  }
-
-  try {
-    if (filter?.fecha) {
-      const { desde, hasta } = await rangoParaFiltroCreadoEn(filter.fecha, this.variables);
-      where.creadoEn = Between(desde, hasta);
+    const where: FindOptionsWhere<PedidoOrmEntity> = {};
+    if (filter.idPedido) {
+      where.idPedido = filter.idPedido;
+    }
+    if (filter.idUsuario) {
+      where.usuarioSolicitud = { idUsuario: filter.idUsuario };
+    }
+    if (filter.idRepartidor) {
+      where.usuarioRepartidor = { idUsuario: filter.idRepartidor };
+    }
+    if (filter.fechaEntrega) {
+      where.fechaEntrega = new Date(`${filter.fechaEntrega}T12:00:00.000Z`);
+    }
+    if (filter.idsEstadoPedido?.length) {
+      where.estadoPedido = { idEstadoPedido: In(filter.idsEstadoPedido) };
     }
 
-    const rows = await this.repo.find({ ...base, where });
-    const out = await Promise.all(
-      rows.map(async (row) =>
-        enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row)),
-      ),
-    );
-    this.logger.log(
-      `listPedidos ${filtroDesc} idUsuario=${filter?.idUsuario ?? 'todos'} idRepartidor=${filter?.idRepartidor ?? 'todos'} count=${out.length} ${Date.now() - t0}ms`,
-    );
-    return out;
-  } catch (e) {
-    this.rethrowIfMissingRelation(e);
-    throw e;
+    try {
+      if (filter.fecha) {
+        const { desde, hasta } = await rangoParaFiltroCreadoEn(filter.fecha, this.variables);
+        where.creadoEn = Between(desde, hasta);
+      }
+
+      const [rows, total] = await this.repo.findAndCount({
+        ...base,
+        where,
+        skip: offset,
+        take: filter.limit,
+      });
+      const out = await Promise.all(
+        rows.map(async (row) =>
+          enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row)),
+        ),
+      );
+      this.logger.log(
+        `listPedidos ${filtroDesc} idUsuario=${filter.idUsuario ?? 'todos'} idRepartidor=${filter.idRepartidor ?? 'todos'} total=${total} page=${filter.page} ${Date.now() - t0}ms`,
+      );
+      return buildPaginado(out, total, filter.page, filter.limit);
+    } catch (e) {
+      this.rethrowIfMissingRelation(e);
+      throw e;
+    }
   }
-}
 
   async findPedidoById(id: number): Promise<PedidoListado | null> {
     const t0 = Date.now();

@@ -2,9 +2,11 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { VAR } from '../../configuracion/variable.keys';
 import { VariablesService } from '../../configuracion/variables.service';
 import { ESTADOS_PEDIDO_EN_REPARTO } from '../logistica-pedido-estados.constants';
+import { resolverPaginacion } from '../domain/paginacion';
 import type { ListPedidosFilter, PedidoReadPort } from '../domain/ports/pedido-read.port';
 import { PEDIDO_READ } from '../pedidos.tokens';
 import { hoyYmdBogota } from './asignacion-fecha-bogota';
+import type { ListPedidosSupervisorQueryDto } from '../presentation/http/dto/list-pedidos-supervisor.query.dto';
 
 function assertFechaYmd(fecha: string): void {
   const d = new Date(`${fecha}T12:00:00.000Z`);
@@ -20,7 +22,8 @@ export class ListPedidosEnRepartoSupervisorUseCase {
     @Inject(PEDIDO_READ) private readonly pedidos: PedidoReadPort,
   ) {}
 
-  async execute(query?: { fecha?: string; idRepartidor?: number }) {
+  async execute(query?: ListPedidosSupervisorQueryDto) {
+    const { page, limit } = resolverPaginacion(query);
     const fecha = query?.fecha?.trim() || hoyYmdBogota();
     assertFechaYmd(fecha);
 
@@ -30,6 +33,8 @@ export class ListPedidosEnRepartoSupervisorUseCase {
     );
 
     const filter: ListPedidosFilter = {
+      page,
+      limit,
       fechaEntrega: fecha,
       idsEstadoPedido,
       ...(query?.idRepartidor != null && { idRepartidor: query.idRepartidor }),

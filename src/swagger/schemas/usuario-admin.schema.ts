@@ -72,10 +72,7 @@ export class UsuarioAdminListadoPaginadoSchema {
   @ApiProperty({ example: USUARIO_ADMIN_LISTADO_PAGINADO_EJEMPLO.limit })
   limit!: number;
 
-  @ApiProperty({
-    example: USUARIO_ADMIN_LISTADO_PAGINADO_EJEMPLO.totalPaginas,
-    description: 'Cantidad de páginas según `total` y `limit` (`ceil(total / limit)`; 0 si no hay registros).',
-  })
+  @ApiProperty({ example: USUARIO_ADMIN_LISTADO_PAGINADO_EJEMPLO.totalPaginas })
   totalPaginas!: number;
 
   @ApiProperty({

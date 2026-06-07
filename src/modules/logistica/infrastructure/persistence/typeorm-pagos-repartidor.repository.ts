@@ -14,6 +14,7 @@ import {
   idUsuarioDesdeBusquedaRepartidor,
 } from '../../application/repartidor-codigo';
 import { variacionPorcentaje } from '../../application/finanzas-periodo';
+import { buildPaginado } from '../../domain/paginacion';
 import type {
   DispersionRepartidorResultado,
   ListRepartidoresPagoFilter,
@@ -233,7 +234,7 @@ export class TypeOrmPagosRepartidorRepository implements PagosRepartidorPort {
       };
     });
 
-    return { total, page: filter.page, limit: filter.limit, items };
+    return buildPaginado(items, total, filter.page, filter.limit);
   }
 
   async generarDispersionTotal(): Promise<DispersionRepartidorResultado> {

@@ -34,7 +34,7 @@ import { GetPedidoByIdUseCase } from '../../application/get-pedido-by-id.use-cas
 import { GetPedidoByNumGuiaUseCase } from '../../application/get-pedido-by-num-guia.use-case';
 import { ListPedidosUseCase } from '../../application/list-pedidos.use-case';
 import { UpdatePedidoUseCase } from '../../application/update-pedido.use-case';
-import { PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
+import { PedidoListadoPaginadoSchema, PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
 import {
   EJEMPLO_CREAR_PEDIDO_CON_FOTOS_PAQUETE,
   EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA,
@@ -69,16 +69,19 @@ export class PedidosController {
     summary: 'Listar pedidos',
     description:
       'Devuelve pedidos con tipo, estado, método, usuarios, paquete y dirección en **texto legible** (nomenclatura urbana CO en `direccion`). ' +
-      'Filtros opcionales en query: **`idPedido`** (un solo pedido, 0–1 resultados), **`fecha`** (día de `creado_en`, zona Colombia por defecto), **`idUsuario`** (solicitante). ' +
+      'Filtros opcionales: **`idPedido`**, **`fecha`** (día de `creado_en`), **`idUsuario`**. ' +
+      'Paginación: `page` (default 1), `limit` (default 20); la respuesta incluye `total`, `totalPaginas` e `items`. ' +
       'Para consultar **un pedido por id** con respuesta 404 explícita, prefiera **GET /pedidos/{id}**.',
   })
-  @ApiOkResponse({ type: PedidoListadoSchema, isArray: true })
+  @ApiOkResponse({ type: PedidoListadoPaginadoSchema })
   @ApiBadRequestResponse({ description: '`fecha` inválida o parámetros de query mal formados' })
   list(@Query() query: ListPedidosQueryDto) {
     return this.listPedidos.execute({
       ...(query.idPedido != null && { idPedido: query.idPedido }),
-      ...(query.fecha && !query.idPedido && { fecha: query.fecha }),
-      ...(query.idUsuario && !query.idPedido && { idUsuario: query.idUsuario }),
+      ...(query.fecha && { fecha: query.fecha }),
+      ...(query.idUsuario && { idUsuario: query.idUsuario }),
+      page: query.page,
+      limit: query.limit,
     });
   }
 

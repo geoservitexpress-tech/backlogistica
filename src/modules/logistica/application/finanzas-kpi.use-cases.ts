@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { resolverPaginacion } from '../domain/paginacion';
 import {
   margenPorcentaje,
   periodoAnterior,
@@ -89,8 +90,8 @@ export class ListTransaccionesRecientesUseCase {
   constructor(@Inject(FINANZAS_KPI) private readonly finanzas: FinanzasKpiPort) {}
 
   execute(query: ListTransaccionesRecientesQueryDto) {
-    const limit = query.limit ?? 5;
-    const filter: ListTransaccionesRecientesFilter = { limit };
+    const { page, limit } = resolverPaginacion(query);
+    const filter: ListTransaccionesRecientesFilter = { page, limit };
 
     if (query.fechaDesde || query.fechaHasta) {
       const periodo = resolverFinanzasPeriodo(query.fechaDesde, query.fechaHasta);

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { resolverPaginacion } from '../domain/paginacion';
 import type { UsuarioAdminPort } from '../domain/read-models/usuario-admin-listado';
 import { USUARIO_ADMIN } from '../usuarios-admin.tokens';
 import type { ActualizarRolesUsuarioBodyDto } from '../presentation/http/dto/actualizar-roles-usuario.body.dto';
@@ -9,9 +10,10 @@ export class ListUsuariosAdminUseCase {
   constructor(@Inject(USUARIO_ADMIN) private readonly usuarios: UsuarioAdminPort) {}
 
   execute(query: ListUsuariosAdminQueryDto) {
+    const { page, limit } = resolverPaginacion(query);
     return this.usuarios.listUsuarios({
-      page: query.page ?? 1,
-      limit: query.limit ?? 20,
+      page,
+      limit,
       ...(query.search?.trim() && { search: query.search.trim() }),
       ...(query.idRol != null && { idRol: query.idRol }),
     });

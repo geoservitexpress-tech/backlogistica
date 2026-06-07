@@ -52,7 +52,7 @@ export class AdminPagosRepartidoresController {
     summary: 'Listado de repartidores para tabla',
     description:
       'Solo lectura: `codigo` (RP-xxxx), `nombre`, `vehiculo`, `zona`, `entregasTotales`, `estado`. ' +
-      'Búsqueda por nombre, documento o RP-8842. Paginación `page` + `limit` (default 4).',
+      'Búsqueda por nombre, documento o RP-8842. Paginación `page` + `limit` (default 20); respuesta con `totalPaginas`.',
   })
   @ApiOkResponse({ type: RepartidorPagoListadoPaginadoSchema })
   list(@Query() query: ListRepartidoresPagoQueryDto) {

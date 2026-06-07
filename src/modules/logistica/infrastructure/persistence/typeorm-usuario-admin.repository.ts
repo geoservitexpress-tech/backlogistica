@@ -12,6 +12,7 @@ import type {
   UsuarioAdminPort,
   UsuarioRolResumen,
 } from '../../domain/read-models/usuario-admin-listado';
+import { buildPaginado } from '../../domain/paginacion';
 import { RolOrmEntity } from './rol.orm-entity';
 import { TipoDocumentoOrmEntity } from './tipo-documento.orm-entity';
 import { UsuarioOrmEntity } from './usuario.orm-entity';
@@ -123,13 +124,7 @@ export class TypeOrmUsuarioAdminRepository implements UsuarioAdminPort {
     const rolesMap = await this.rolesPorUsuarios(rows.map((r) => r.id_usuario));
     const items = rows.map((r) => this.mapUsuario(r, rolesMap.get(r.id_usuario) ?? []));
 
-    return {
-      total,
-      page: filter.page,
-      limit: filter.limit,
-      totalPaginas: total === 0 ? 0 : Math.ceil(total / filter.limit),
-      items,
-    };
+    return buildPaginado(items, total, filter.page, filter.limit);
   }
 
   async actualizarRolesUsuario(idUsuario: number, idsRol: number[]): Promise<UsuarioAdminListado> {

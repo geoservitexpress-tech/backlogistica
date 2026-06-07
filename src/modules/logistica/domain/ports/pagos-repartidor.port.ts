@@ -1,3 +1,5 @@
+import type { Paginado } from '../paginacion';
+
 export type RepartidorPagoListado = {
   codigo: string;
   nombre: string;
@@ -8,12 +10,7 @@ export type RepartidorPagoListado = {
   estado: 'ocupado' | 'libre';
 };
 
-export type RepartidorPagoListadoPaginado = {
-  total: number;
-  page: number;
-  limit: number;
-  items: RepartidorPagoListado[];
-};
+export type RepartidorPagoListadoPaginado = Paginado<RepartidorPagoListado>;
 
 export type PagosRepartidorKpis = {
   totalPendientePago: number;

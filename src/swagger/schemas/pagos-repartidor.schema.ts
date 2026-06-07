@@ -53,6 +53,9 @@ export class RepartidorPagoListadoPaginadoSchema {
   @ApiProperty({ example: 4 })
   limit!: number;
 
+  @ApiProperty({ example: 31, description: 'ceil(total / limit)' })
+  totalPaginas!: number;
+
   @ApiProperty({ type: RepartidorPagoListadoSchema, isArray: true })
   items!: RepartidorPagoListadoSchema[];
 }

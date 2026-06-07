@@ -2,9 +2,10 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Matches, Min } from 'class-validator';
 import { hoyYmdBogota } from '../../../application/asignacion-fecha-bogota';
+import { PaginacionQueryDto } from './paginacion.query.dto';
 
 /** Query de `GET /supervisor/pedidos/en-reparto`. */
-export class ListPedidosSupervisorQueryDto {
+export class ListPedidosSupervisorQueryDto extends PaginacionQueryDto {
   @ApiPropertyOptional({
     example: hoyYmdBogota(),
     description:

@@ -95,3 +95,20 @@ export class PedidoListadoSchema {
   @ApiPropertyOptional({ type: [String], nullable: true })
   fotosPaqueteUrls!: string[] | null;
 }
+
+export class PedidoListadoPaginadoSchema {
+  @ApiProperty({ example: 42 })
+  total!: number;
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 20 })
+  limit!: number;
+
+  @ApiProperty({ example: 3 })
+  totalPaginas!: number;
+
+  @ApiProperty({ type: PedidoListadoSchema, isArray: true })
+  items!: PedidoListadoSchema[];
+}

@@ -5,6 +5,7 @@ import { VAR } from '../../../configuracion/variable.keys';
 import { VariablesService } from '../../../configuracion/variables.service';
 import type { FacturaListado } from '../../domain/read-models/factura-listado';
 import type { FacturaReadPort, ListFacturasFilter } from '../../domain/ports/factura-read.port';
+import { buildPaginado, type Paginado } from '../../domain/paginacion';
 import { facturaOrmToListado } from './factura-listado.mapper';
 import { FacturaOrmEntity } from './factura.orm-entity';
 
@@ -60,29 +61,35 @@ export class TypeOrmFacturaReadRepository implements FacturaReadPort {
     }
   }
 
-  async listFacturas(filter?: ListFacturasFilter): Promise<FacturaListado[]> {
+  async listFacturas(filter: ListFacturasFilter): Promise<Paginado<FacturaListado>> {
     const where: FindOptionsWhere<FacturaOrmEntity> = {};
-    if (filter?.idCliente) {
+    const offset = (filter.page - 1) * filter.limit;
+    if (filter.idFactura) {
+      where.idFactura = filter.idFactura;
+    }
+    if (filter.idCliente) {
       where.cliente = { idUsuario: filter.idCliente };
     }
-    if (filter?.idPedido) {
+    if (filter.idPedido) {
       where.pedido = { idPedido: filter.idPedido };
     }
-    if (filter?.idEstadoFactura) {
+    if (filter.idEstadoFactura) {
       where.estadoFactura = { idEstadoFactura: filter.idEstadoFactura };
     }
-    if (filter?.fecha) {
+    if (filter.fecha) {
       const { desde, hasta } = await rangoParaFiltroCreadoEn(filter.fecha, this.variables);
       where.creadoEn = Between(desde, hasta);
     }
 
     try {
-      const rows = await this.repo.find({
+      const [rows, total] = await this.repo.findAndCount({
         where,
         relations: [...FACTURA_RELATIONS],
         order: { creadoEn: 'DESC' },
+        skip: offset,
+        take: filter.limit,
       });
-      return rows.map(facturaOrmToListado);
+      return buildPaginado(rows.map(facturaOrmToListado), total, filter.page, filter.limit);
     } catch (e) {
       this.rethrowIfMissingRelation(e);
       throw e;

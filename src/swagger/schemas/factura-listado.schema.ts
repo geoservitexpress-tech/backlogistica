@@ -96,3 +96,20 @@ export const EJEMPLO_FACTURA_PAGADA_PREPAGO = {
 export const EJEMPLO_PAGAR_FACTURA_BODY = {
   idMetodoPago: METODO_PAGO_TRANSFERENCIA_ID,
 };
+
+export class FacturaListadoPaginadoSchema {
+  @ApiProperty({ example: 15 })
+  total!: number;
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 20 })
+  limit!: number;
+
+  @ApiProperty({ example: 1 })
+  totalPaginas!: number;
+
+  @ApiProperty({ type: FacturaListadoSchema, isArray: true })
+  items!: FacturaListadoSchema[];
+}
