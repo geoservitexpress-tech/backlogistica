@@ -1,10 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
@@ -39,7 +42,12 @@ import { UsuarioRolOrmEntity } from './usuario-rol.orm-entity';
 import { SupabaseEvidenciasStorage } from '../storage/supabase-evidencias.storage';
 import { VAR } from '../../../configuracion/variable.keys';
 import { VariablesService } from '../../../configuracion/variables.service';
-import { ESTADO_PEDIDO_CREADO_ID } from '../../logistica-pedido-estados.constants';
+import { ESTADO_PEDIDO_CREADO_ID, ESTADO_PEDIDO_ENTREGADO_ID, ESTADO_PEDIDO_EN_CURSO_ID } from '../../logistica-pedido-estados.constants';
+import { METODO_RECEPCION_ID_ENTREGA, METODO_RECEPCION_ID_RECOGIDA } from '../../logistica-metodo-recepcion.constants';
+import {
+  persistirDireccionYDestinatario,
+  textoDireccionEntrega,
+} from './persistir-direccion-destinatario';
 import { ROL_ID_ADMINISTRADOR, ROL_ID_CLIENTE } from '../../logistica-rol.constants';
 import {
   anexarFotosSeguimientoCreacion,
@@ -331,40 +339,19 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
 
         const usuario = await cargarUsuarioSolicitanteAutorizado(manager, input.idUsuario);
 
-        const tipoVia = await resolverTipoVia(manager, input.tipoViaNombre);
-        const { ciudad, departamento, pais } = await cargarGeografiaDireccion(manager, input);
-        validarIdZonaBogotaParaCiudad(input.idCiudad, input.idZonaBogota);
-        const zonaBogota = await resolverZonaBogotaOpcional(
-          manager,
-          input.idCiudad,
-          input.idZonaBogota,
-        );
-        const nombreViaNorm = input.nombreVia.trim().slice(0, 120);
-        const zona = armarZonaResumida(
-          tipoVia.nombre,
-          nombreViaNorm,
-          input.numeroPlaca,
-          input.numeroSecundario,
-        );
-        const observacionesEntrega = input.observacionesDireccion?.trim() || null;
+        const recogida = input.idMetodoRecepcion === METODO_RECEPCION_ID_RECOGIDA;
+        if (recogida && !input.destinoEntrega) {
+          throw new BadRequestException(
+            'destinoEntrega es obligatorio cuando idMetodoRecepcion=1 (Recogida).',
+          );
+        }
 
-        const dirRepo = manager.getRepository(DireccionOrmEntity);
-        const direccion = dirRepo.create({
-          tipoVia: { idTipoVia: tipoVia.idTipoVia },
-          pais: { idPais: pais.idPais },
-          departamento: { idDepartamento: departamento.idDepartamento },
-          ciudad: { idCiudad: ciudad.idCiudad },
-          zonaBogota,
-          observacionesEntrega,
-          zona,
-          numeroPrincipal: input.numeroPlaca.trim().slice(0, 32),
-          numeroSecundario: input.numeroSecundario.trim().slice(0, 32),
-          creadoEn: now,
-        });
-        await dirRepo.save(direccion);
-        this.logger.log(
-          `TX[${txnLabel}] insert direccion id_direccion=${direccion.idDireccion} fk_zona=${direccion.zonaBogota?.idZona ?? 'null'}`,
-        );
+        const { direccion, destinatario, ciudad, departamento } =
+          await persistirDireccionYDestinatario(manager, input, now);
+
+        const destinoPersistido = recogida
+          ? await persistirDireccionYDestinatario(manager, input.destinoEntrega!, now)
+          : null;
 
         const paqRepo = manager.getRepository(PaqueteOrmEntity);
         const paquete = paqRepo.create({
@@ -380,15 +367,6 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
         const metodo = await resolverMetodoRecepcionPorId(manager, input.idMetodoRecepcion);
         const estado = await resolverEstadoPedidoCreacion(manager, this.variables);
         idEstadoPedidoCreacion = estado.idEstadoPedido;
-
-        const destRepo = manager.getRepository(DestinatarioOrmEntity);
-        const destinatario = destRepo.create({
-          nombre: input.nombreDestinatario.trim().slice(0, 200),
-          telefono: input.telefonoDestinatario.trim().slice(0, 32),
-          creadoEn: now,
-        });
-        await destRepo.save(destinatario);
-        this.logger.log(`TX[${txnLabel}] insert destinatario id_destinatario=${destinatario.idDestinatario}`);
 
         const monto = Number(input.valorDeclarado);
         const precioEnvio = input.precio != null ? Number(input.precio) : monto;
@@ -437,6 +415,8 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           valorRecaudado: pagadoAlCrear ? precioEnvio : null,
           metodoPago: metodoPagoCreacion,
           destinatario,
+          direccionDestino: destinoPersistido?.direccion ?? null,
+          destinatarioDestino: destinoPersistido?.destinatario ?? null,
           fotosPaqueteUrls: null,
         });
 
@@ -489,14 +469,12 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           `TX[${txnLabel}] seguimiento creación id_pedido=${idPedido} manifiesto=${manifiestoTxt ? 'sí' : 'no'}`,
         );
 
-        const direccionEntregaTexto = [
-          ciudad.nombre,
-          departamento.nombre,
-          zona,
-          observacionesEntrega,
-        ]
-          .filter(Boolean)
-          .join(', ');
+        const facturaDest = destinoPersistido ?? { destinatario, direccion, ciudad, departamento };
+        const direccionEntregaTexto = textoDireccionEntrega(
+          facturaDest.ciudad,
+          facturaDest.departamento,
+          facturaDest.direccion,
+        );
 
         await crearFacturaAlCrearPedido(manager, {
           idPedido,
@@ -504,11 +482,11 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           monto: precioEnvio,
           pagadoAlCrear,
           idMetodoPago: metodoPagoCreacion?.idMetodoPago ?? null,
-          destinatarioNombre: destinatario.nombre,
-          destinatarioTelefono: destinatario.telefono,
+          destinatarioNombre: facturaDest.destinatario.nombre,
+          destinatarioTelefono: facturaDest.destinatario.telefono,
           direccionEntrega: direccionEntregaTexto,
-          idDestinatario: destinatario.idDestinatario,
-          idDireccion: direccion.idDireccion,
+          idDestinatario: facturaDest.destinatario.idDestinatario,
+          idDireccion: facturaDest.direccion.idDireccion,
         });
 
         const row = await pedidoRepo.findOne({
@@ -768,5 +746,137 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
     });
 
     return this.pedidoRead.findPedidoById(idPedido);
+  }
+
+  async confirmarRecogidaYCrearPedidoEntrega(
+    idPedido: number,
+    idRepartidor: number,
+  ): Promise<PedidoListado> {
+    const idEnCurso = await this.variables.getInt(
+      VAR.REPARTIDOR_PEDIDO_ESTADO_EN_CAMINO_ID,
+      ESTADO_PEDIDO_EN_CURSO_ID,
+      { min: 1 },
+    );
+    const idEntregado = await this.variables.getInt(
+      VAR.REPARTIDOR_PEDIDO_ESTADO_ENTREGADO_ID,
+      ESTADO_PEDIDO_ENTREGADO_ID,
+      { min: 1 },
+    );
+
+    const idPedidoEntrega = await this.dataSource.transaction(async (manager) => {
+      const pedidoRepo = manager.getRepository(PedidoOrmEntity);
+      const recogida = await pedidoRepo.findOne({
+        where: { idPedido },
+        relations: [
+          'metodoRecepcion',
+          'estadoPedido',
+          'usuarioRepartidor',
+          'usuarioSolicitud',
+          'tipoPedido',
+          'paquete',
+          'direccionDestino',
+          'direccionDestino.ciudad',
+          'direccionDestino.departamento',
+          'destinatarioDestino',
+        ],
+      });
+
+      if (!recogida) {
+        throw new NotFoundException(`Pedido ${idPedido} no encontrado`);
+      }
+      if (recogida.metodoRecepcion.idMetodoRecepcion !== METODO_RECEPCION_ID_RECOGIDA) {
+        throw new BadRequestException(
+          'Solo pedidos de Recogida (idMetodoRecepcion=1) admiten confirmar-recogida.',
+        );
+      }
+      if (!recogida.direccionDestino || !recogida.destinatarioDestino) {
+        throw new BadRequestException(
+          'El pedido de recogida no tiene destino de entrega (fk_direccion_destino / fk_destinatario_destino).',
+        );
+      }
+
+      const repId = recogida.usuarioRepartidor?.idUsuario ?? null;
+      if (!repId || repId !== idRepartidor) {
+        throw new ForbiddenException('Este pedido no está asignado a usted como repartidor.');
+      }
+
+      const estadoActual = recogida.estadoPedido.idEstadoPedido;
+      if (estadoActual === idEntregado) {
+        throw new ConflictException('La recogida ya fue confirmada.');
+      }
+      if (estadoActual !== idEnCurso) {
+        throw new ConflictException(
+          `Solo se puede confirmar recogida desde En curso. Estado actual: ${recogida.estadoPedido.nombre}.`,
+        );
+      }
+
+      const estadoEntrega = await resolverEstadoPedidoCreacion(manager, this.variables);
+      const metodoEntrega = await resolverMetodoRecepcionPorId(manager, METODO_RECEPCION_ID_ENTREGA);
+      const now = new Date();
+
+      const pedidoEntrega = pedidoRepo.create({
+        numGuia: generarNumGuia(),
+        creadoEn: now,
+        tipoPedido: recogida.tipoPedido,
+        usuarioSolicitud: recogida.usuarioSolicitud,
+        fkCliente: null,
+        usuarioRecolector: null,
+        usuarioRepartidor: null,
+        metodoRecepcion: metodoEntrega,
+        paquete: recogida.paquete,
+        direccion: recogida.direccionDestino,
+        estadoPedido: estadoEntrega,
+        precio: recogida.precio,
+        valorDeclarado: recogida.valorDeclarado,
+        fechaEntrega: recogida.fechaEntrega,
+        fragil: recogida.fragil,
+        pagadoPorRemitente: recogida.pagadoPorRemitente,
+        valorRecaudado: recogida.pagadoPorRemitente ? recogida.precio : null,
+        metodoPago: recogida.metodoPago,
+        destinatario: recogida.destinatarioDestino,
+        direccionDestino: null,
+        destinatarioDestino: null,
+      });
+      await pedidoRepo.save(pedidoEntrega);
+
+      await manager.update(
+        PedidoOrmEntity,
+        { idPedido },
+        { estadoPedido: { idEstadoPedido: idEntregado } },
+      );
+
+      await registrarSeguimientoCreacionPedido(manager, {
+        idPedido: pedidoEntrega.idPedido,
+        idEstadoPedido: estadoEntrega.idEstadoPedido,
+        observacionesManifiesto: null,
+      });
+
+      const direccionEntregaTexto = textoDireccionEntrega(
+        recogida.direccionDestino.ciudad,
+        recogida.direccionDestino.departamento,
+        recogida.direccionDestino,
+      );
+
+      await crearFacturaAlCrearPedido(manager, {
+        idPedido: pedidoEntrega.idPedido,
+        idCliente: recogida.usuarioSolicitud.idUsuario,
+        monto: recogida.precio,
+        pagadoAlCrear: recogida.pagadoPorRemitente ?? false,
+        idMetodoPago: recogida.metodoPago?.idMetodoPago ?? null,
+        destinatarioNombre: recogida.destinatarioDestino.nombre,
+        destinatarioTelefono: recogida.destinatarioDestino.telefono,
+        direccionEntrega: direccionEntregaTexto,
+        idDestinatario: recogida.destinatarioDestino.idDestinatario,
+        idDireccion: recogida.direccionDestino.idDireccion,
+      });
+
+      return pedidoEntrega.idPedido;
+    });
+
+    const listado = await this.pedidoRead.findPedidoById(idPedidoEntrega);
+    if (!listado) {
+      throw new InternalServerErrorException('No se pudo leer el pedido de entrega generado');
+    }
+    return listado;
   }
 }

@@ -80,6 +80,23 @@ export class PedidoListadoSchema {
   @ApiPropertyOptional({ nullable: true })
   destinatarioTelefono!: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Solo recogida: dirección de entrega final (`fk_direccion_destino`)',
+    example: 'Bogotá, Bogotá D.C., Calle 11b # 15-40, Torre norte, apto 502',
+  })
+  direccionDestino!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Solo recogida: destinatario de entrega final',
+    example: 'María Pérez',
+  })
+  destinatarioDestinoNombre!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: '3001234567' })
+  destinatarioDestinoTelefono!: string | null;
+
   @ApiProperty()
   fragil!: boolean;
 

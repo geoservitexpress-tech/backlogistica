@@ -14,4 +14,11 @@ export const PEDIDO_RELATIONS = [
   'direccion.ciudad',
   'direccion.zonaBogota',
   'destinatario',
+  'direccionDestino',
+  'direccionDestino.tipoVia',
+  'direccionDestino.pais',
+  'direccionDestino.departamento',
+  'direccionDestino.ciudad',
+  'direccionDestino.zonaBogota',
+  'destinatarioDestino',
 ] as const;

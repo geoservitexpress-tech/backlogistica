@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsInt,
   IsNumber,
   IsOptional,
@@ -13,6 +14,7 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import {
   CIUDAD_ID_BOGOTA_DC,
@@ -20,9 +22,13 @@ import {
   PAIS_ID_COLOMBIA,
   ZONA_BOGOTA_EJEMPLO_ID,
 } from '../../../logistica-geografia.constants';
-import { METODO_RECEPCION_ID_ENTREGA } from '../../../logistica-metodo-recepcion.constants';
+import {
+  METODO_RECEPCION_ID_ENTREGA,
+  METODO_RECEPCION_ID_RECOGIDA,
+} from '../../../logistica-metodo-recepcion.constants';
 import { TIPO_PEDIDO_ID_NORMAL } from '../../../logistica-tipo-pedido.constants';
 import { EJEMPLO_FOTO_PAQUETE_DATA_URL } from '../ejemplo-foto-paquete.data-url';
+import { PedidoDestinoEntregaBodyDto } from './pedido-destino-entrega.body.dto';
 
 /** Cuerpo de `POST /pedidos` — solicitante = usuario del JWT (Cliente o Administrador). */
 export class CreatePedidoBodyDto {
@@ -48,14 +54,29 @@ export class CreatePedidoBodyDto {
     type: 'integer',
     example: METODO_RECEPCION_ID_ENTREGA,
     description:
-      '`metodo_recepcion.id_metodo_recepcion` — **1** = Recogida, **2** = Entrega. Ver **GET /catalogo/metodos-recepcion**.',
+      '`metodo_recepcion.id_metodo_recepcion` — **1** = Recogida (raíz = punto de recogida + `destinoEntrega` obligatorio), **2** = Entrega. Ver **GET /catalogo/metodos-recepcion**.',
   })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   idMetodoRecepcion!: number;
 
-  @ApiProperty({ example: 'María Pérez' })
+  @ApiPropertyOptional({
+    type: PedidoDestinoEntregaBodyDto,
+    description:
+      '**Obligatorio si `idMetodoRecepcion` = 1 (Recogida).** Dirección y destinatario de la entrega final (`fk_direccion_destino`, `fk_destinatario_destino`).',
+  })
+  @ValidateIf((o: CreatePedidoBodyDto) => o.idMetodoRecepcion === METODO_RECEPCION_ID_RECOGIDA)
+  @IsDefined({ message: 'destinoEntrega es obligatorio cuando idMetodoRecepcion=1 (Recogida)' })
+  @ValidateNested()
+  @Type(() => PedidoDestinoEntregaBodyDto)
+  destinoEntrega?: PedidoDestinoEntregaBodyDto;
+
+  @ApiProperty({
+    example: 'María Pérez',
+    description:
+      'Contacto en la dirección del bloque raíz. En **Entrega** = destinatario final; en **Recogida** = contacto en el punto de recogida.',
+  })
   @IsString()
   @MinLength(1)
   @MaxLength(200)
@@ -70,7 +91,7 @@ export class CreatePedidoBodyDto {
   @ApiProperty({
     example: 'Calle',
     description:
-      'Nombre exacto del registro en catálogo **`tipo_via`** (mismo que `GET /catalogo/tipos-via`, ej. Calle, Carrera).',
+      'Nombre exacto del registro en catálogo **`tipo_via`** (mismo que `GET /catalogo/tipos-via`). En **Recogida** = vía del punto de recogida.',
   })
   @IsString()
   @MinLength(1)

@@ -39,6 +39,7 @@ import { ListPedidosRepartidorUseCase } from './application/list-pedidos-reparti
 import { RepartidorAceptarPedidoUseCase } from './application/repartidor-aceptar-pedido.use-case';
 import { RepartidorRecibirPedidoUseCase } from './application/repartidor-recibir-pedido.use-case';
 import { RepartidorConfirmarEntregaUseCase } from './application/repartidor-confirmar-entrega.use-case';
+import { RepartidorConfirmarRecogidaUseCase } from './application/repartidor-confirmar-recogida.use-case';
 import { FacturasController } from './presentation/http/facturas.controller';
 import { CatalogoController } from './presentation/http/catalogo.controller';
 import { PedidosController } from './presentation/http/pedidos.controller';
@@ -121,6 +122,7 @@ import {
     RepartidorRecibirPedidoUseCase,
     RepartidorAceptarPedidoUseCase,
     RepartidorConfirmarEntregaUseCase,
+    RepartidorConfirmarRecogidaUseCase,
     ListPedidosEnRepartoSupervisorUseCase,
     SupervisorUpdatePedidoUseCase,
     GetIngresosTotalesUseCase,

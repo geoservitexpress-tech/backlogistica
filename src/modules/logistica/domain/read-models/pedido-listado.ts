@@ -31,6 +31,10 @@ export interface PedidoListado {
   zonaBogota: string | null;
   destinatarioNombre: string | null;
   destinatarioTelefono: string | null;
+  /** Solo recogida: texto de `fk_direccion_destino` (entrega final). */
+  direccionDestino: string | null;
+  destinatarioDestinoNombre: string | null;
+  destinatarioDestinoTelefono: string | null;
   fragil: boolean;
   observacionesManifiesto: string | null;
   fotosPaqueteUrls: string[] | null;

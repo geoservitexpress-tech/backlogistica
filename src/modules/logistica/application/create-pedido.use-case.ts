@@ -38,6 +38,7 @@ export class CreatePedidoUseCase {
       ...(body.precio != null && { precio: body.precio }),
       ...(body.fotosPaqueteUrls != null && { fotosPaqueteUrls: body.fotosPaqueteUrls }),
       ...(body.fotosPaqueteBase64 != null && { fotosPaqueteBase64: body.fotosPaqueteBase64 }),
+      ...(body.destinoEntrega != null && { destinoEntrega: body.destinoEntrega }),
     };
     return this.write.createPedidoFromForm(input);
   }

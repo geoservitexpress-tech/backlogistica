@@ -108,6 +108,14 @@ export class PedidoOrmEntity {
   @JoinColumn({ name: 'fk_destinatario' })
   destinatario!: DestinatarioOrmEntity | null;
 
+  @ManyToOne(() => DireccionOrmEntity, { nullable: true })
+  @JoinColumn({ name: 'fk_direccion_destino' })
+  direccionDestino!: DireccionOrmEntity | null;
+
+  @ManyToOne(() => DestinatarioOrmEntity, { nullable: true })
+  @JoinColumn({ name: 'fk_destinatario_destino' })
+  destinatarioDestino!: DestinatarioOrmEntity | null;
+
   /**
    * Tu ERD no incluye esta columna en `pedidos`. Sin DML/select no rompe el SQL.
    * Si migra `fotos_paquete_urls` (jsonb), quite los `false` para persistir URLs.

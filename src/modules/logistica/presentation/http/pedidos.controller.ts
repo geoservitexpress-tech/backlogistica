@@ -38,15 +38,17 @@ import { PedidoListadoPaginadoSchema, PedidoListadoSchema } from '../../../../sw
 import {
   EJEMPLO_CREAR_PEDIDO_CON_FOTOS_PAQUETE,
   EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA,
+  EJEMPLO_CREAR_PEDIDO_RECOGIDA,
   EJEMPLO_PATCH_PEDIDO_ESTADO,
 } from '../../../../swagger/ejemplos/pedidos.ejemplos';
 import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import { CreatePedidoBodyDto } from './dto/create-pedido.body.dto';
+import { PedidoDestinoEntregaBodyDto } from './dto/pedido-destino-entrega.body.dto';
 import { ListPedidosQueryDto } from './dto/list-pedidos.query.dto';
 import { UpdatePedidoBodyDto } from './dto/update-pedido.body.dto';
 
 @ApiTags('Pedidos')
-@ApiExtraModels(CreatePedidoBodyDto)
+@ApiExtraModels(CreatePedidoBodyDto, PedidoDestinoEntregaBodyDto)
 @ApiBearerAuth('supabase-jwt')
 @ApiUnauthorizedResponse({
   description:
@@ -93,7 +95,7 @@ export class PedidosController {
       'Crea un pedido con el cuerpo del formulario (destinatario, dirección, producto, manifiesto). ' +
       '**Solicitante:** JWT → `usuarios.id_usuario` (**entero**, ver **GET /auth/me**). Rol Cliente o Administrador. ' +
       '**Modalidad:** `idTipoPedido` (Normal / Express, `GET /catalogo/tipos-pedido`). **Fecha:** `fechaEntrega` (`YYYY-MM-DD` → `pedidos.fecha_entrega`). ' +
-      '**Recepción:** `idMetodoRecepcion` (ej. **2** = Entrega, `GET /catalogo/metodos-recepcion`). ' +
+      '**Recepción:** `idMetodoRecepcion` — **2** = Entrega (un solo bloque de dirección); **1** = Recogida (raíz = punto de recogida + objeto **`destinoEntrega`** obligatorio para `fk_direccion_destino` / `fk_destinatario_destino`). Ver **GET /catalogo/metodos-recepcion**. ' +
       'El backend genera **`id_pedido`** (entero), **`num_guia`**, **`creado_en`**, asigna **`fk_estado_pedido`** según `public.variable` (`PEDIDO_ESTADO_INICIAL_ID`). ' +
       'Catálogos numéricos: `idTipoPedido`, `idMetodoRecepcion`, `idCiudad`, `idDepartamento`, `idPais` (ver **GET /catalogo/**). ' +
       '**Localidad Bogotá:** `idZonaBogota` solo si `idCiudad` = 149 (`GET /catalogo/zonas-bogota` → `direccion.fk_zona`). ' +
@@ -120,6 +122,12 @@ export class PedidosController {
         description:
           'Incluye `fotosPaqueteBase64` (data URL). El servidor sube a Supabase **`evidencias`** en `pedidos/{id}/`.',
         value: EJEMPLO_CREAR_PEDIDO_CON_FOTOS_PAQUETE,
+      },
+      recogidaConDestino: {
+        summary: 'Recogida con destino de entrega',
+        description:
+          'idMetodoRecepcion=1. Campos raíz = punto de recogida; `destinoEntrega` = entrega final (se guarda en fk_direccion_destino / fk_destinatario_destino).',
+        value: EJEMPLO_CREAR_PEDIDO_RECOGIDA,
       },
     },
   })

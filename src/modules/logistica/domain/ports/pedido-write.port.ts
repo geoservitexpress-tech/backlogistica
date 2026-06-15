@@ -1,10 +1,14 @@
 import type { PedidoListado } from '../read-models/pedido-listado';
+import type { PedidoDireccionDestinatarioInput } from '../pedido-direccion-destinatario.input';
 
 /**
  * Payload público alineado con el formulario "Nuevo pedido" (app).
  * El solicitante es un **`usuarios.id_usuario`** con rol **Cliente** o **Administrador** en `usuario_rol` → `rol`.
+ *
+ * **Recogida** (`idMetodoRecepcion` = 1): los campos de nivel raíz son el **punto de recogida**;
+ * `destinoEntrega` es obligatorio y se guarda en `fk_direccion_destino` / `fk_destinatario_destino`.
  */
-export type CreatePedidoFormInput = {
+export type CreatePedidoFormInput = PedidoDireccionDestinatarioInput & {
   idUsuario: number;
   /** `tipo_pedido.id_tipo_pedido` (ej. 1=Normal, 2=Express). */
   idTipoPedido: number;
@@ -12,28 +16,8 @@ export type CreatePedidoFormInput = {
   fechaEntrega: string;
   /** `metodo_recepcion.id_metodo_recepcion` (ej. 2 = Entrega). Ver GET /catalogo/metodos-recepcion. */
   idMetodoRecepcion: number;
-  nombreDestinatario: string;
-  telefonoDestinatario: string;
-  /** Nombre del registro en catálogo `tipo_via` (ej. Calle, Carrera). */
-  tipoViaNombre: string;
-  /** Identificador de la vía (ej. 72); va en `direccion.zona`; el tipo es `fk_tipo_via`. */
-  nombreVia: string;
-  /** Primer tramo del # (placa principal). */
-  numeroPlaca: string;
-  /** Segundo tramo del # (placa secundaria). */
-  numeroSecundario: string;
-  /** `ciudad.id_ciudad` del catálogo (`direccion.fk_ciudad`). */
-  idCiudad: number;
-  /** `departamento.id_departamento` (`direccion.fk_departamento`); la tabla `ciudad` no enlaza depto en BD. */
-  idDepartamento: number;
-  /** `pais.id_pais` (`direccion.fk_pais`); la tabla `departamento` no enlaza país en BD. */
-  idPais: number;
-  /**
-   * `zona_bogota.id_zona` → `direccion.fk_zona`.
-   * Solo si `idCiudad` = Bogotá D.C. (149). Ver GET /catalogo/zonas-bogota.
-   */
-  idZonaBogota?: number;
-  observacionesDireccion?: string;
+  /** Obligatorio si `idMetodoRecepcion` = 1 (Recogida): dirección y destinatario de entrega final. */
+  destinoEntrega?: PedidoDireccionDestinatarioInput;
   /** Texto libre para `paquete.nombre` (ej. Electrónicos). */
   tipoProductoNombre: string;
   pesoKg: number;
@@ -90,4 +74,12 @@ export interface PedidoWritePort {
   createPedidoFromForm(input: CreatePedidoFormInput): Promise<PedidoListado>;
   /** Devuelve `null` si no existe `id_pedido`. */
   updatePedido(idPedido: number, patch: UpdatePedidoInput): Promise<PedidoListado | null>;
+  /**
+   * Cierra el pedido de recogida (Entregado) y crea el pedido de entrega usando
+   * `fk_direccion_destino` / `fk_destinatario_destino` del pedido de recogida.
+   */
+  confirmarRecogidaYCrearPedidoEntrega(
+    idPedido: number,
+    idRepartidor: number,
+  ): Promise<PedidoListado>;
 }

@@ -8,9 +8,49 @@ import {
   ESTADO_PEDIDO_ASIGNADO_ID,
   ESTADO_PEDIDO_EN_CURSO_ID,
 } from '../../modules/logistica/logistica-pedido-estados.constants';
-import { METODO_RECEPCION_ID_ENTREGA } from '../../modules/logistica/logistica-metodo-recepcion.constants';
+import {
+  METODO_RECEPCION_ID_ENTREGA,
+  METODO_RECEPCION_ID_RECOGIDA,
+} from '../../modules/logistica/logistica-metodo-recepcion.constants';
 import { TIPO_PEDIDO_ID_NORMAL } from '../../modules/logistica/logistica-tipo-pedido.constants';
 import { EJEMPLO_FOTO_PAQUETE_DATA_URL } from '../../modules/logistica/presentation/http/ejemplo-foto-paquete.data-url';
+
+/** POST /pedidos — recogida: raíz = punto de recogida; `destinoEntrega` = entrega final. */
+export const EJEMPLO_CREAR_PEDIDO_RECOGIDA = {
+  idTipoPedido: TIPO_PEDIDO_ID_NORMAL,
+  fechaEntrega: '2026-05-22',
+  idMetodoRecepcion: METODO_RECEPCION_ID_RECOGIDA,
+  nombreDestinatario: 'Bodega Central',
+  telefonoDestinatario: '6015551234',
+  tipoViaNombre: 'Carrera',
+  nombreVia: '15',
+  numeroPlaca: '80',
+  numeroSecundario: '45',
+  idCiudad: CIUDAD_ID_BOGOTA_DC,
+  idDepartamento: DEPARTAMENTO_ID_BOGOTA,
+  idPais: PAIS_ID_COLOMBIA,
+  idZonaBogota: ZONA_BOGOTA_EJEMPLO_ID,
+  observacionesDireccion: 'Portería, pedir por paquete BL',
+  tipoProductoNombre: 'Documentos',
+  pesoKg: 1.2,
+  valorDeclarado: 250000,
+  fragil: false,
+  pagadoPorRemitente: false,
+  precio: 15000,
+  destinoEntrega: {
+    nombreDestinatario: 'María Pérez',
+    telefonoDestinatario: '3001234567',
+    tipoViaNombre: 'Calle',
+    nombreVia: '11b',
+    numeroPlaca: '15',
+    numeroSecundario: '40',
+    idCiudad: CIUDAD_ID_BOGOTA_DC,
+    idDepartamento: DEPARTAMENTO_ID_BOGOTA,
+    idPais: PAIS_ID_COLOMBIA,
+    idZonaBogota: ZONA_BOGOTA_EJEMPLO_ID,
+    observacionesDireccion: 'Torre norte, apto 502',
+  },
+};
 
 /** POST /pedidos — entrega en Bogotá, tipo Normal (solicitante = JWT, no va en el body). */
 export const EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA = {

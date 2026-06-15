@@ -40,6 +40,7 @@ import { ListPedidosRepartidorUseCase } from '../../application/list-pedidos-rep
 import { RepartidorAceptarPedidoUseCase } from '../../application/repartidor-aceptar-pedido.use-case';
 import { RepartidorRecibirPedidoUseCase } from '../../application/repartidor-recibir-pedido.use-case';
 import { RepartidorConfirmarEntregaUseCase } from '../../application/repartidor-confirmar-entrega.use-case';
+import { RepartidorConfirmarRecogidaUseCase } from '../../application/repartidor-confirmar-recogida.use-case';
 import { PedidoListadoPaginadoSchema, PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
 import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import {
@@ -67,6 +68,7 @@ export class RepartidorPedidosController {
     private readonly recibirPedido: RepartidorRecibirPedidoUseCase,
     private readonly aceptarPedido: RepartidorAceptarPedidoUseCase,
     private readonly confirmarEntrega: RepartidorConfirmarEntregaUseCase,
+    private readonly confirmarRecogida: RepartidorConfirmarRecogidaUseCase,
   ) {}
 
   @Get()
@@ -152,6 +154,36 @@ export class RepartidorPedidosController {
   ) {
     const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
     return this.aceptarPedido.execute(id, idRepartidor);
+  }
+
+  @Post(':id/confirmar-recogida')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Confirmar recogida y generar pedido de entrega',
+    description:
+      'Solo pedidos **Recogida** (`idMetodoRecepcion` = 1) en estado **En curso**. ' +
+      'Marca la recogida como **Entregado** y crea un pedido de **Entrega** usando `fk_direccion_destino` y `fk_destinatario_destino` del pedido de recogida. Sin body.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: 'integer',
+    description: '`pedidos.id_pedido` del pedido de recogida',
+    example: SWAGGER_EJEMPLO_ID_PEDIDO,
+  })
+  @ApiOkResponse({
+    type: PedidoListadoSchema,
+    description: 'Pedido de entrega recién creado (idMetodoRecepcion=2)',
+  })
+  @ApiBadRequestResponse({ description: 'No es recogida o falta destino de entrega' })
+  @ApiNotFoundResponse({ description: 'Pedido no existe' })
+  @ApiForbiddenResponse({ description: 'Pedido de otro repartidor' })
+  @ApiConflictResponse({ description: 'No está En curso o ya confirmada' })
+  async confirmarRecogidaPedido(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentSupabaseUser() jwt: SupabaseJwtPayload,
+  ) {
+    const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
+    return this.confirmarRecogida.execute(id, idRepartidor);
   }
 
   @Post(':id/confirmar-entrega')
