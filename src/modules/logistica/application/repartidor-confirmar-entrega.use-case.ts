@@ -1,3 +1,4 @@
+// repartidor-confirmar-entrega.use-case.ts
 import {
   BadRequestException,
   ConflictException,
@@ -283,6 +284,56 @@ export class RepartidorConfirmarEntregaUseCase {
         pedidoPost.pagadoPorRemitente = body.pagadoPorRemitente;
         pedidoPost.valorRecaudado = body.valorRecaudado;
         await cerrarFacturaSiPedidoTerminal(manager, pedidoPost);
+      }
+
+      if (pasaAEntregado && pedidoPost) {
+        const pedidoConRelaciones = await manager.getRepository(PedidoOrmEntity).findOne({
+          where: { idPedido },
+          relations: [
+            'tipoPedido',
+            'usuarioSolicitud',
+            'usuarioRepartidor',
+            'metodoRecepcion',
+            'paquete',
+            'direccion',
+            'direccionDestino',
+            'destinatarioDestino',
+          ],
+        });
+
+        if (pedidoConRelaciones?.metodoRecepcion?.nombre === 'Recogida') {
+          const fecha   = new Date();
+          const ymd     = fecha.toISOString().slice(0, 10).replace(/-/g, '');
+          const rand    = Math.random().toString(36).slice(2, 8).toUpperCase();
+          const numGuia = `BL-${ymd}-${rand}`;
+
+          await manager.query(
+            `insert into pedidos (
+              num_guia, fk_tipo_pedido, fk_usuario_solicitud, fk_usuario_repartidor,
+              fk_metodo_recepcion, fk_paquete, fk_direccion, fk_destinatario, fk_estado_pedido,
+              precio, valor_declarado, fecha_entrega, creado_en,
+              pagado_por_remitente, valor_recaudado
+            ) values (
+              $1, $2, $3, $4,
+              2, $5, $6, $7, 2,
+              $8, $9, $10, now(),
+              $11, 0
+            )`,
+            [
+              numGuia,
+              pedidoConRelaciones.tipoPedido.idTipoPedido,
+              pedidoConRelaciones.usuarioSolicitud.idUsuario,
+              pedidoConRelaciones.usuarioRepartidor?.idUsuario ?? null,
+              pedidoConRelaciones.paquete.idPaquete,
+              pedidoConRelaciones.direccionDestino?.idDireccion ?? pedidoConRelaciones.direccion.idDireccion,
+              pedidoConRelaciones.destinatarioDestino?.idDestinatario ?? null,
+              pedidoConRelaciones.precio,
+              pedidoConRelaciones.valorDeclarado,
+              pedidoConRelaciones.fechaEntrega,
+              pedidoConRelaciones.pagadoPorRemitente,
+            ],
+          );
+        }
       }
     });
 
