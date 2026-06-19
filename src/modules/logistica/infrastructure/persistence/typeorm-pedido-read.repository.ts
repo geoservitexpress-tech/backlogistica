@@ -11,7 +11,7 @@ import { pedidoOrmToListado } from './pedido-listado.mapper';
 import { PEDIDO_RELATIONS } from './pedido.orm-relations';
 import { PedidoOrmEntity } from './pedido.orm-entity';
 import { SupabaseEvidenciasStorage } from '../storage/supabase-evidencias.storage';
-import { leerManifiestoDesdeSeguimiento } from './registrar-seguimiento-pedido';
+import { leerManifiestoDesdeSeguimiento, leerObservacionEntregaDesdeSeguimiento } from './registrar-seguimiento-pedido';
 
 /** Inicio y fin (inclusive) del día `YYYY-MM-DD` en **UTC** (`creado_en` timestamptz). */
 function rangoDiaUtc(fechaYmd: string): { desde: Date; hasta: Date } {
@@ -52,10 +52,11 @@ async function enriquecerPedidoListadoDesdeStorage(
   row: PedidoOrmEntity,
   listado: PedidoListado,
 ): Promise<PedidoListado> {
-  const [urls, manifiestoStorage, manifiestoDb] = await Promise.all([
+  const [urls, manifiestoStorage, manifiestoDb, obsEntrega] = await Promise.all([
     evidencias.listarUrlsFotosPedido(row.idPedido),
     evidencias.leerManifiestoPedido(row.idPedido),
     leerManifiestoDesdeSeguimiento(dataSource.manager, row.idPedido).catch(() => null),
+    leerObservacionEntregaDesdeSeguimiento(dataSource.manager, row.idPedido).catch(() => null),
   ]);
   return {
     ...listado,
@@ -67,6 +68,7 @@ async function enriquecerPedidoListadoDesdeStorage(
           : null,
     observacionesManifiesto:
       manifiestoDb ?? listado.observacionesManifiesto ?? manifiestoStorage ?? null,
+    observacionesEntrega: obsEntrega ?? listado.observacionesEntrega ?? null,
   };
 }
 

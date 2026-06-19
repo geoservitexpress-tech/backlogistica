@@ -192,3 +192,25 @@ export async function leerManifiestoDesdeSeguimiento(
   const t = rows[0]?.observaciones?.trim();
   return t || null;
 }
+
+
+/** Lee la última observación de entrega registrada por el repartidor (confirmar-entrega). */
+export async function leerObservacionEntregaDesdeSeguimiento(
+  manager: EntityManager,
+  idPedido: number,
+): Promise<string | null> {
+  const rows = (await manager.query(
+    `select ds.observaciones
+     from descripcion_seguimiento ds
+     inner join seguimiento s on s.id_seguimiento = ds.fk_seguimiento
+     where s.fk_pedido = $1::int
+       and ds.fk_resultado_entrega is not null
+       and ds.observaciones is not null
+       and btrim(ds.observaciones) <> ''
+     order by ds.creado_en desc, ds.id_descripcion desc
+     limit 1`,
+    [idPedido],
+  )) as { observaciones: string }[];
+  const t = rows[0]?.observaciones?.trim();
+  return t || null;
+}
