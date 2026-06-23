@@ -14,10 +14,11 @@ export function setupSwagger(app: INestApplication): void {
       'API REST de logística (NestJS, arquitectura hexagonal). ' +
         'Pedidos: listado con filtros (`fecha`, `fechaEntrega`, `idProveedor`, `idMensajero`, `direccion`, `idPedido`), **GET /pedidos/{id}**, **GET /pedidos/guia/{numGuia}**, alta y PATCH. ' +
         'La dirección en respuestas usa nomenclatura colombiana (`zona` = número antes del `#`; placas en principal/secundario). ' +
+        'Límites de paquete configurables en `public.variable` (peso 25–30 kg, dimensiones máx.). ' +
         '**Repartidor**: `GET /repartidor/pedidos` → `POST …/recibir` (2→3) → `POST …/aceptar` (3→4) → `POST …/confirmar-entrega`. ' +
         '**Supervisor**: `GET /supervisor/pedidos/en-reparto` (hoy, estados 2–4) · `PATCH /supervisor/pedidos/{id}` (sin manifiesto/fotos). ' +
         'Cobro y estado del paquete: body de confirmar-entrega; ver ejemplos en Swagger. ' +
-        'Parámetros operativos (cron, estados, cupos): tabla `public.variable` — **GET /catalogo/variables**. ' +
+        'Parámetros operativos (cron, estados, cupos): **GET /catalogo/variables** (lectura) · **Admin — Variables** (edición). ' +
         `\n\n**Probar:** **POST /auth/login** con \`${SWAGGER_EJEMPLO_CORREO}\` → **Authorize** → tag Repartidor.`,
     )
     .setVersion('1.0')
@@ -50,6 +51,8 @@ export function setupSwagger(app: INestApplication): void {
       'Tablero del día: pedidos en reparto · editar pedido (sin observaciones ni imágenes)',
     )
     .addTag('Catálogo', 'Catálogos de apoyo (países, estados, etc.)')
+    .addTag('Admin — Variables', 'Editar parámetros `public.variable` (solo ADMINISTRADOR)')
+    .addTag('Admin — Usuarios', 'Usuarios y roles (solo ADMINISTRADOR)')
     .addTag('Ejemplos', 'CRUD de ejemplo (hexagonal)')
     .build();
 

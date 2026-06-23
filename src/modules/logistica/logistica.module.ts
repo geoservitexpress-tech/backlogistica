@@ -58,12 +58,19 @@ import { FINANZAS_KPI } from './finanzas.tokens';
 import { AdminPagosRepartidoresController } from './presentation/http/admin-pagos-repartidores.controller';
 import { AdminFinanzasController } from './presentation/http/admin-finanzas.controller';
 import { AdminUsuariosController } from './presentation/http/admin-usuarios.controller';
+import { AdminVariablesController } from './presentation/http/admin-variables.controller';
 import { TypeOrmUsuarioAdminRepository } from './infrastructure/persistence/typeorm-usuario-admin.repository';
 import { USUARIO_ADMIN } from './usuarios-admin.tokens';
 import {
   ActualizarRolesUsuarioUseCase,
   ListUsuariosAdminUseCase,
 } from './application/usuarios-admin.use-cases';
+import {
+  ActualizarVariableAdminUseCase,
+  GetVariableAdminUseCase,
+  ListVariablesAdminUseCase,
+} from './application/variables-admin.use-cases';
+import { CotizarTarifaUseCase } from './application/cotizar-tarifa.use-case';
 import { TypeOrmPagosRepartidorRepository } from './infrastructure/persistence/typeorm-pagos-repartidor.repository';
 import { PAGOS_REPARTIDOR } from './pagos-repartidor.tokens';
 import {
@@ -77,7 +84,7 @@ import {
  */
 @Module({
   imports: [AuthModule, TypeOrmModule.forFeature([...LOGISTICA_TYPEORM_ENTITIES])],
-  controllers: [CatalogoController, PedidosController, FacturasController, AdminFinanzasController, AdminPagosRepartidoresController, AdminUsuariosController, RepartidorPedidosController, SupervisorPedidosController],
+  controllers: [CatalogoController, PedidosController, FacturasController, AdminFinanzasController, AdminPagosRepartidoresController, AdminUsuariosController, AdminVariablesController, RepartidorPedidosController, SupervisorPedidosController],
   providers: [
     TypeOrmCatalogReadRepository,
     { provide: CATALOG_READ, useExisting: TypeOrmCatalogReadRepository },
@@ -134,6 +141,10 @@ import {
     GenerarDispersionRepartidorUseCase,
     ListUsuariosAdminUseCase,
     ActualizarRolesUsuarioUseCase,
+    ListVariablesAdminUseCase,
+    GetVariableAdminUseCase,
+    ActualizarVariableAdminUseCase,
+    CotizarTarifaUseCase,
     AsignacionRepartidoresService,
     AsignacionRepartidoresCron,
   ],

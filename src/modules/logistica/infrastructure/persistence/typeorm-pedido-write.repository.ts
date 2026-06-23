@@ -27,6 +27,11 @@ import { DepartamentoOrmEntity } from './departamento.orm-entity';
 import { PaisOrmEntity } from './pais.orm-entity';
 import { DestinatarioOrmEntity } from './destinatario.orm-entity';
 import { validarIdZonaBogotaParaCiudad, esCiudadBogotaDc } from '../../application/validar-zona-bogota';
+import {
+  cargarLimitesPaquete,
+  validarLimitesPaquete,
+  type PaqueteMedidasInput,
+} from '../../application/validar-limites-paquete';
 import { DireccionOrmEntity } from './direccion.orm-entity';
 import { ZonaBogotaOrmEntity } from './zona-bogota.orm-entity';
 import { EstadoPedidoOrmEntity } from './estado-pedido.orm-entity';
@@ -42,7 +47,17 @@ import { UsuarioRolOrmEntity } from './usuario-rol.orm-entity';
 import { SupabaseEvidenciasStorage } from '../storage/supabase-evidencias.storage';
 import { VAR } from '../../../configuracion/variable.keys';
 import { VariablesService } from '../../../configuracion/variables.service';
-import { ESTADO_PEDIDO_CREADO_ID, ESTADO_PEDIDO_ENTREGADO_ID, ESTADO_PEDIDO_EN_CURSO_ID } from '../../logistica-pedido-estados.constants';
+import {
+  cargarConfigTarifaEnvio,
+  calcularTarifaEnvio,
+  validarPrecioExpress,
+} from '../../application/calcular-tarifa-envio';
+import { TIPO_PEDIDO_EXPRESS_ID } from '../../logistica-tipo-pedido.constants';
+import {
+  ESTADO_PEDIDO_CREADO_ID,
+  ESTADO_PEDIDO_EN_CURSO_ID,
+  ESTADO_PEDIDO_ENTREGADO_ID,
+} from '../../logistica-pedido-estados.constants';
 import { METODO_RECEPCION_ID_ENTREGA, METODO_RECEPCION_ID_RECOGIDA } from '../../logistica-metodo-recepcion.constants';
 import {
   persistirDireccionYDestinatario,
@@ -57,6 +72,7 @@ import {
 import {
   cerrarFacturaSiPedidoTerminal,
   crearFacturaAlCrearPedido,
+  sincronizarFacturaMontoAbierta,
 } from './gestionar-factura-pedido';
 
 function generarNumGuia(): string {
@@ -353,11 +369,27 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           ? await persistirDireccionYDestinatario(manager, input.destinoEntrega!, now)
           : null;
 
+        const limitesPaquete = await cargarLimitesPaquete(this.variables);
+        validarLimitesPaquete(
+          {
+            pesoKg: input.pesoKg,
+            altoCm: input.altoCm,
+            anchoCm: input.anchoCm,
+            largoCm: input.largoCm,
+          },
+          limitesPaquete,
+          { esCreacion: true },
+        );
+
         const paqRepo = manager.getRepository(PaqueteOrmEntity);
         const paquete = paqRepo.create({
           nombre: input.tipoProductoNombre.trim().slice(0, 200),
           peso: input.pesoKg,
           precio: input.valorDeclarado,
+          altoCm: input.altoCm ?? null,
+          anchoCm: input.anchoCm ?? null,
+          largoCm: input.largoCm ?? null,
+          fkPoliticaResponsabilidad: input.idPoliticaResponsabilidad ?? null,
           creadoEn: now,
         });
         await paqRepo.save(paquete);
@@ -369,7 +401,21 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
         idEstadoPedidoCreacion = estado.idEstadoPedido;
 
         const monto = Number(input.valorDeclarado);
-        const precioEnvio = input.precio != null ? Number(input.precio) : monto;
+        const idCiudadTarifa =
+          recogida && input.destinoEntrega ? input.destinoEntrega.idCiudad : input.idCiudad;
+        const configTarifa = await cargarConfigTarifaEnvio(this.variables);
+        const tarifaCalc = calcularTarifaEnvio(
+          {
+            idCiudad: idCiudadTarifa,
+            idTipoPedido: input.idTipoPedido,
+            pesoKg: input.pesoKg,
+            altoCm: input.altoCm,
+            anchoCm: input.anchoCm,
+            largoCm: input.largoCm,
+          },
+          configTarifa,
+        );
+        const precioEnvio = tarifaCalc.tarifaSugerida;
         const pagadoAlCrear = input.pagadoPorRemitente ?? false;
         if (pagadoAlCrear && input.idMetodoPago == null) {
           throw new BadRequestException(
@@ -632,7 +678,13 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
         }
       }
       if (patch.precio !== undefined) {
-        pedido.precio = Number(patch.precio);
+        const nuevoPrecio = Number(patch.precio);
+        if (pedido.tipoPedido.idTipoPedido === TIPO_PEDIDO_EXPRESS_ID) {
+          const configTarifa = await cargarConfigTarifaEnvio(this.variables);
+          validarPrecioExpress(nuevoPrecio, configTarifa);
+        }
+        pedido.precio = nuevoPrecio;
+        await sincronizarFacturaMontoAbierta(manager, idPedido, nuevoPrecio);
       }
 
       if (patch.fechaEntrega !== undefined) {
@@ -715,12 +767,47 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
       }
 
       if (pedido.paquete) {
+        const paqueteTocado =
+          patch.tipoProductoNombre !== undefined ||
+          patch.pesoKg !== undefined ||
+          patch.altoCm !== undefined ||
+          patch.anchoCm !== undefined ||
+          patch.largoCm !== undefined ||
+          patch.idPoliticaResponsabilidad !== undefined;
+
+        if (paqueteTocado) {
+          const medidas: PaqueteMedidasInput = {
+            pesoKg: patch.pesoKg ?? pedido.paquete.peso,
+            altoCm: patch.altoCm !== undefined ? patch.altoCm : pedido.paquete.altoCm,
+            anchoCm: patch.anchoCm !== undefined ? patch.anchoCm : pedido.paquete.anchoCm,
+            largoCm: patch.largoCm !== undefined ? patch.largoCm : pedido.paquete.largoCm,
+          };
+          const limitesPaquete = await cargarLimitesPaquete(this.variables);
+          validarLimitesPaquete(medidas, limitesPaquete);
+        }
+
         if (patch.tipoProductoNombre !== undefined) {
           pedido.paquete.nombre = patch.tipoProductoNombre.trim().slice(0, 200);
           paqueteDirty = true;
         }
         if (patch.pesoKg !== undefined) {
           pedido.paquete.peso = patch.pesoKg;
+          paqueteDirty = true;
+        }
+        if (patch.altoCm !== undefined) {
+          pedido.paquete.altoCm = patch.altoCm;
+          paqueteDirty = true;
+        }
+        if (patch.anchoCm !== undefined) {
+          pedido.paquete.anchoCm = patch.anchoCm;
+          paqueteDirty = true;
+        }
+        if (patch.largoCm !== undefined) {
+          pedido.paquete.largoCm = patch.largoCm;
+          paqueteDirty = true;
+        }
+        if (patch.idPoliticaResponsabilidad !== undefined) {
+          pedido.paquete.fkPoliticaResponsabilidad = patch.idPoliticaResponsabilidad;
           paqueteDirty = true;
         }
         if (paqueteDirty) await manager.getRepository(PaqueteOrmEntity).save(pedido.paquete);

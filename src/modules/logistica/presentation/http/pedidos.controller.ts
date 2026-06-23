@@ -103,6 +103,9 @@ export class PedidosController {
       'Catálogos numéricos: `idTipoPedido`, `idMetodoRecepcion`, `idCiudad`, `idDepartamento`, `idPais` (ver **GET /catalogo/**). ' +
       '**Localidad Bogotá:** `idZonaBogota` solo si `idCiudad` = 149 (`GET /catalogo/zonas-bogota` → `direccion.fk_zona`). ' +
       'Dirección: **`nombreVia` → `direccion.zona`**, placas en `numeroPlaca` / `numeroSecundario`. ' +
+      '**Paquete:** `pesoKg` (máx. **PAQUETE_PESO_MAX_KG**, 25–30 kg en `public.variable`); dimensiones opcionales `altoCm` / `anchoCm` / `largoCm` (límites **PAQUETE_*_MAX_CM**). ' +
+      '`idPoliticaResponsabilidad` reservado para seguros futuros. Ver **GET /catalogo/variables**. ' +
+      '**Tarifa:** el servidor calcula `precio` según `idCiudad` de entrega (149 = Bogotá, otra = fuera de Bogotá), tipo, peso y dimensiones; la respuesta incluye `precio`. ' +
       '**Manifiesto:** `observacionesManifiesto` se guarda en `descripcion_seguimiento.observaciones` (paso inicial en `seguimiento`). **Fotos:** URLs en `descripcion_seguimiento.foto_url` y bucket **`evidencias`** (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).',
   })
   @ApiBody({
@@ -136,7 +139,7 @@ export class PedidosController {
   })
   @ApiCreatedResponse({
     type: PedidoListadoSchema,
-    description: 'Pedido creado; `idPedido` es el entero asignado por el servidor',
+    description: 'Pedido creado con `precio` (tarifa calculada). Misma forma que GET /pedidos/{id}.',
   })
   @ApiBadRequestResponse({ description: 'FK inexistente u otro error de validación de datos' })
   async crear(

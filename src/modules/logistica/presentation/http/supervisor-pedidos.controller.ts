@@ -79,7 +79,8 @@ export class SupervisorPedidosController {
     summary: 'Editar pedido (mismos campos que PATCH /pedidos, sin manifiesto/fotos)',
     description:
       'Acepta **todos** los campos editables de `PATCH /pedidos/{id}`: `idEstadoPedido`, `fechaEntrega`, repartidor/recolector, ' +
-      'destinatario, dirección (`tipoViaNombre`, placas, ciudad, `observacionesDireccion`), tipo/método de pedido, paquete, precios, `fragil`. ' +
+      'destinatario, dirección (`tipoViaNombre`, placas, ciudad, `observacionesDireccion`), tipo/método de pedido, paquete (**pesoKg**, dimensiones, **`precio`** tarifa final), precios, `fragil`. ' +
+      'El supervisor puede fijar peso, tamaño y **`precio`** final. ' +
       'Envíe solo los campos que quiera cambiar (PATCH parcial). ' +
       '**Excluidos:** `observacionesManifiesto`, `fotosPaqueteBase64`, `fotosPaqueteUrls`. ' +
       'Si cambia la nomenclatura de la vía, envíe el bloque completo de dirección.',

@@ -65,7 +65,6 @@ export const EJEMPLO_CREAR_PEDIDO_RECOGIDA = {
   valorDeclarado: 250000,
   fragil: false,
   pagadoPorRemitente: false,
-  precio: 15000,
   destinoEntrega: {
     nombreDestinatario: 'María Pérez',
     telefonoDestinatario: '3001234567',
@@ -102,7 +101,9 @@ export const EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA = {
   valorDeclarado: 1500000,
   fragil: true,
   pagadoPorRemitente: false,
-  precio: 18000,
+  altoCm: 30,
+  anchoCm: 25,
+  largoCm: 40,
   observacionesManifiesto:
     'Manipular con cuidado, llamar al recibir al número indicado en la etiqueta.',
   fotosPaqueteBase64: [EJEMPLO_FOTO_PAQUETE_DATA_URL],

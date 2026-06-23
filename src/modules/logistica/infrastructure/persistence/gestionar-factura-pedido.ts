@@ -265,3 +265,28 @@ export async function registrarPagoFacturaAbierta(
   }
   return saved;
 }
+
+/** Actualiza `factura.monto` si la factura del pedido sigue abierta (estado Creada). */
+export async function sincronizarFacturaMontoAbierta(
+  manager: EntityManager,
+  idPedido: number,
+  nuevoMonto: number,
+): Promise<void> {
+  if (!(await tablaFacturaDisponible(manager))) return;
+  await assertColumnasFacturaApi(manager);
+
+  const repo = manager.getRepository(FacturaOrmEntity);
+  const factura = await repo.findOne({
+    where: { pedido: { idPedido } },
+    relations: ['estadoFactura'],
+  });
+  if (!factura) return;
+  if (!ESTADOS_FACTURA_ABIERTA.includes(factura.estadoFactura.idEstadoFactura)) return;
+  if (factura.pagadoAlCrear) return;
+
+  const monto = Number(nuevoMonto);
+  factura.monto = monto;
+  factura.actualizadoEn = new Date();
+  await repo.save(factura);
+  logger.log(`Factura ${factura.numero} monto actualizado id_pedido=${idPedido} monto=${monto}`);
+}

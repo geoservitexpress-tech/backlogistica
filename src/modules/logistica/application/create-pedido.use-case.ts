@@ -28,6 +28,12 @@ export class CreatePedidoUseCase {
       }),
       tipoProductoNombre: body.tipoProductoNombre,
       pesoKg: body.pesoKg,
+      ...(body.altoCm != null && { altoCm: body.altoCm }),
+      ...(body.anchoCm != null && { anchoCm: body.anchoCm }),
+      ...(body.largoCm != null && { largoCm: body.largoCm }),
+      ...(body.idPoliticaResponsabilidad != null && {
+        idPoliticaResponsabilidad: body.idPoliticaResponsabilidad,
+      }),
       valorDeclarado: body.valorDeclarado,
       fragil: body.fragil,
       ...(body.observacionesManifiesto != null && {
@@ -35,7 +41,6 @@ export class CreatePedidoUseCase {
       }),
       pagadoPorRemitente: body.pagadoPorRemitente ?? false,
       ...(body.idMetodoPago != null && { idMetodoPago: body.idMetodoPago }),
-      ...(body.precio != null && { precio: body.precio }),
       ...(body.fotosPaqueteUrls != null && { fotosPaqueteUrls: body.fotosPaqueteUrls }),
       ...(body.fotosPaqueteBase64 != null && { fotosPaqueteBase64: body.fotosPaqueteBase64 }),
       ...(body.destinoEntrega != null && { destinoEntrega: body.destinoEntrega }),

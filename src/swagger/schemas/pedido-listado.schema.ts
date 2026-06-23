@@ -28,6 +28,12 @@ export const PEDIDO_LISTADO_EJEMPLO = {
   destinatarioDestinoNombre: null,
   destinatarioDestinoTelefono: null,
   fragil: true,
+  pagadoPorRemitente: false,
+  precio: 12000,
+  pesoKg: 2.5,
+  altoCm: 30,
+  anchoCm: 25,
+  largoCm: 20,
   observacionesManifiesto: 'Manipular con cuidado, llamar al recibir.',
   fotosPaqueteUrls: ['https://example.supabase.co/storage/v1/object/public/evidencias/pedidos/1/foto-1.jpg'],
 } as const;
@@ -151,6 +157,29 @@ export class PedidoListadoSchema {
 
   @ApiPropertyOptional({ type: [String], nullable: true })
   fotosPaqueteUrls!: string[] | null;
+
+  @ApiProperty({
+    example: 12000,
+    description:
+      'Tarifa del envío (`pedidos.precio`, COP). Calculada al crear según ciudad, tipo, peso y dimensiones; ' +
+      'visible en POST /pedidos y en GET /pedidos.',
+  })
+  precio!: number;
+
+  @ApiProperty({ example: false, description: 'Si el remitente pagó al crear el pedido' })
+  pagadoPorRemitente!: boolean;
+
+  @ApiPropertyOptional({ type: 'number', nullable: true, example: 2.5, description: 'Peso del paquete (kg)' })
+  pesoKg!: number | null;
+
+  @ApiPropertyOptional({ type: 'number', nullable: true, example: 30 })
+  altoCm!: number | null;
+
+  @ApiPropertyOptional({ type: 'number', nullable: true, example: 25 })
+  anchoCm!: number | null;
+
+  @ApiPropertyOptional({ type: 'number', nullable: true, example: 20 })
+  largoCm!: number | null;
 }
 
 export class PedidoListadoPaginadoSchema {

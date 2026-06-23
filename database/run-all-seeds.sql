@@ -24,7 +24,9 @@
 -- 15. 14-seed-zona-bogota.sql
 -- 16. 16-seed-estados-factura.sql   (solo catálogo; BD nueva ya trae estado_factura en 01-schema)
 -- 17. 15-seed-variables.sql
--- 18. factura-install.sql          (BD existente: CREATE factura + ALTER FK + estados)
+-- 18. 21-seed-paquete-variables.sql   (límites peso/dimensiones paquete)
+-- 19. 22-seed-tarifa-variables.sql    (tarifas Bogotá / fuera de Bogotá / Express)
+-- 20. factura-install.sql          (BD existente: CREATE factura + ALTER FK + estados)
 --
 -- Luego en la app:
 --   • Borrar usuario en Supabase Auth si re-registra el mismo correo

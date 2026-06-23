@@ -1,10 +1,29 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { VariableKey } from './variable.keys';
 import { VariableOrmEntity } from './infrastructure/persistence/variable.orm-entity';
+import { validarValorVariable } from './validar-valor-variable';
 
 const CACHE_TTL_MS = 30_000;
+
+export interface VariableListado {
+  idVariable: number;
+  clave: string;
+  valor: string;
+  tipo: string;
+  descripcion: string | null;
+}
+
+function mapVariableListado(row: VariableOrmEntity): VariableListado {
+  return {
+    idVariable: row.idVariable,
+    clave: row.clave,
+    valor: row.valor,
+    tipo: row.tipo,
+    descripcion: row.descripcion,
+  };
+}
 
 @Injectable()
 export class VariablesService implements OnModuleInit {
@@ -95,16 +114,56 @@ export class VariablesService implements OnModuleInit {
     }
   }
 
-  async listAll(): Promise<
-    { clave: string; valor: string; tipo: string; descripcion: string | null }[]
-  > {
+  async listAll(filter?: { search?: string }): Promise<VariableListado[]> {
     await this.ensureFresh();
-    const rows = await this.repo.find({ order: { clave: 'ASC' } });
-    return rows.map((r) => ({
-      clave: r.clave,
-      valor: r.valor,
-      tipo: r.tipo,
-      descripcion: r.descripcion,
-    }));
+    const qb = this.repo.createQueryBuilder('v').orderBy('v.clave', 'ASC');
+    if (filter?.search) {
+      qb.andWhere('(v.clave ILIKE :q OR v.descripcion ILIKE :q)', { q: `%${filter.search}%` });
+    }
+    const rows = await qb.getMany();
+    return rows.map(mapVariableListado);
+  }
+
+  async listPage(filter: {
+    search?: string;
+    page: number;
+    limit: number;
+  }): Promise<{ items: VariableListado[]; total: number }> {
+    await this.ensureFresh();
+    const qb = this.repo.createQueryBuilder('v').orderBy('v.clave', 'ASC');
+    if (filter.search) {
+      qb.andWhere('(v.clave ILIKE :q OR v.descripcion ILIKE :q)', { q: `%${filter.search}%` });
+    }
+    const total = await qb.getCount();
+    const rows = await qb
+      .skip((filter.page - 1) * filter.limit)
+      .take(filter.limit)
+      .getMany();
+    return { items: rows.map(mapVariableListado), total };
+  }
+
+  async findById(idVariable: number): Promise<VariableListado | null> {
+    const row = await this.repo.findOne({ where: { idVariable } });
+    return row ? mapVariableListado(row) : null;
+  }
+
+  async updateById(
+    idVariable: number,
+    patch: { valor: string; descripcion?: string | null },
+  ): Promise<VariableListado> {
+    const row = await this.repo.findOne({ where: { idVariable } });
+    if (!row) {
+      throw new NotFoundException(`Variable ${idVariable} no encontrada.`);
+    }
+
+    validarValorVariable(row.clave, row.tipo, patch.valor);
+    row.valor = patch.valor.trim();
+    if (patch.descripcion !== undefined) {
+      row.descripcion = patch.descripcion?.trim() ? patch.descripcion.trim() : null;
+    }
+    await this.repo.save(row);
+    await this.refresh();
+    this.logger.log(`Variable actualizada id=${idVariable} clave=${row.clave}`);
+    return mapVariableListado(row);
   }
 }

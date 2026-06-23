@@ -123,7 +123,9 @@ export class CreatePedidoBodyDto {
   @ApiProperty({
     type: 'integer',
     example: CIUDAD_ID_BOGOTA_DC,
-    description: '`ciudad.id_ciudad` — **149** = Bogotá D.C. (`GET /catalogo/ciudades`).',
+    description:
+      '`ciudad.id_ciudad` — **149** = Bogotá D.C. (`GET /catalogo/ciudades`). ' +
+      'Define la tarifa al crear: Bogotá $12.000, cualquier otra ciudad $15.000 (Normal).',
   })
   @Type(() => Number)
   @IsInt()
@@ -182,11 +184,47 @@ export class CreatePedidoBodyDto {
   @MaxLength(200)
   tipoProductoNombre!: string;
 
-  @ApiProperty({ example: 2.5, description: 'Peso en kilogramos' })
+  @ApiProperty({ example: 2.5, description: 'Peso en kilogramos (máximo configurable en public.variable → PAQUETE_PESO_MAX_KG, 25–30 kg).' })
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
+  @Min(0.001)
   pesoKg!: number;
+
+  @ApiPropertyOptional({
+    example: 30,
+    description:
+      'Alto del paquete en centímetros. Junto con anchoCm y largoCm; obligatorio si PAQUETE_DIMENSIONES_OBLIGATORIAS=true.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  altoCm?: number;
+
+  @ApiPropertyOptional({ example: 25, description: 'Ancho del paquete en centímetros.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  anchoCm?: number;
+
+  @ApiPropertyOptional({ example: 40, description: 'Largo del paquete en centímetros.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  largoCm?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description:
+      'Reservado para catálogo futuro de seguros / políticas de responsabilidad (`paquete.fk_politica_responsabilidad`).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idPoliticaResponsabilidad?: number;
 
   @ApiProperty({
     example: 1500000,
@@ -224,16 +262,6 @@ export class CreatePedidoBodyDto {
   @IsInt()
   @Min(1)
   idMetodoPago?: number;
-
-  @ApiPropertyOptional({
-    description: 'Tarifa del envío (`pedidos.precio` y `factura.monto`). Si omites, usa `valorDeclarado`.',
-    example: 18000,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  precio?: number;
 
   @ApiPropertyOptional({
     description:

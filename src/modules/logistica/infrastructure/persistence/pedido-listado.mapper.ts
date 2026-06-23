@@ -63,6 +63,10 @@ export function pedidoOrmToListado(row: PedidoOrmEntity): PedidoListado {
     fotosPaqueteUrls: row.fotosPaqueteUrls ?? null,
     pagadoPorRemitente: row.pagadoPorRemitente ?? false,
     precio: row.precio ?? 0,
+    pesoKg: row.paquete?.peso ?? null,
+    altoCm: row.paquete?.altoCm ?? null,
+    anchoCm: row.paquete?.anchoCm ?? null,
+    largoCm: row.paquete?.largoCm ?? null,
     usuarioRepartidorTelefono: row.usuarioRepartidor?.telefono ?? null,
     observacionesEntrega: null,
   };

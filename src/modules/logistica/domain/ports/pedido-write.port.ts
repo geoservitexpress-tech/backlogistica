@@ -21,14 +21,18 @@ export type CreatePedidoFormInput = PedidoDireccionDestinatarioInput & {
   /** Texto libre para `paquete.nombre` (ej. Electrónicos). */
   tipoProductoNombre: string;
   pesoKg: number;
+  /** Alto del paquete en centímetros (opcional salvo PAQUETE_DIMENSIONES_OBLIGATORIAS). */
+  altoCm?: number;
+  anchoCm?: number;
+  largoCm?: number;
+  /** Reservado: id futuro de política de seguro / responsabilidad. */
+  idPoliticaResponsabilidad?: number;
   valorDeclarado: number;
   fragil: boolean;
   /** true = el remitente pagó al crear el despacho (prepago). */
   pagadoPorRemitente?: boolean;
   /** Requerido si `pagadoPorRemitente` = true. Catálogo `metodo_pago`. */
   idMetodoPago?: number;
-  /** Tarifa del envío (`pedidos.precio` / `factura.monto`); default = `valorDeclarado`. */
-  precio?: number;
   observacionesManifiesto?: string;
   /** URLs `https` ya públicas (opcional). */
   fotosPaqueteUrls?: string[];
@@ -65,6 +69,10 @@ export type UpdatePedidoInput = {
   observacionesDireccion?: string;
   tipoProductoNombre?: string;
   pesoKg?: number;
+  altoCm?: number | null;
+  anchoCm?: number | null;
+  largoCm?: number | null;
+  idPoliticaResponsabilidad?: number | null;
   observacionesManifiesto?: string;
   fotosPaqueteUrls?: string[];
   fotosPaqueteBase64?: string[];

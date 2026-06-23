@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ListCiudadesUseCase } from '../../application/list-ciudades.use-case';
 import { ListDepartamentosUseCase } from '../../application/list-departamentos.use-case';
@@ -14,8 +14,15 @@ import { ListResultadosEntregaUseCase } from '../../application/list-resultados-
 import { ListTiposViaUseCase } from '../../application/list-tipos-via.use-case';
 import { ListZonasBogotaUseCase } from '../../application/list-zonas-bogota.use-case';
 import { ListVariablesUseCase } from '../../application/list-variables.use-case';
+import { CotizarTarifaUseCase } from '../../application/cotizar-tarifa.use-case';
 import { CatalogoFilaSchema } from '../../../../swagger/schemas/catalogo-fila.schema';
 import { ResultadoEntregaCatalogoSchema } from '../../../../swagger/schemas/resultado-entrega.schema';
+import { VARIABLE_ADMIN_EJEMPLO, VariableAdminSchema } from '../../../../swagger/schemas/variable-admin.schema';
+import {
+  TARIFA_COTIZACION_EJEMPLO,
+  TarifaEnvioCotizacionSchema,
+} from '../../../../swagger/schemas/tarifa-envio.schema';
+import { CotizarTarifaQueryDto } from './dto/cotizar-tarifa.query.dto';
 
 @ApiTags('Catálogo')
 @Controller('catalogo')
@@ -35,13 +42,35 @@ export class CatalogoController {
     private readonly listMetodosPago: ListMetodosPagoUseCase,
     private readonly listEstadosFactura: ListEstadosFacturaUseCase,
     private readonly listVariables: ListVariablesUseCase,
+    private readonly cotizarTarifa: CotizarTarifaUseCase,
   ) {}
+
+  @Get('tarifas/cotizar')
+  @ApiOperation({
+    summary: 'Cotizar tarifa de envío',
+    description:
+      'Calcula tarifa sugerida: Bogotá D.C. $12.000, fuera de Bogotá $15.000 (Normal); Express $15.000–$20.000; ' +
+      'recargos por peso (>10 kg) y dimensiones. Parámetros en **GET /catalogo/variables** / **Admin — Variables**.',
+  })
+  @ApiOkResponse({
+    type: TarifaEnvioCotizacionSchema,
+    schema: { example: TARIFA_COTIZACION_EJEMPLO },
+  })
+  cotizarTarifaEnvio(@Query() query: CotizarTarifaQueryDto) {
+    return this.cotizarTarifa.execute(query);
+  }
 
   @Get('variables')
   @ApiOperation({
     summary: 'Parámetros operativos (tabla variable)',
     description:
-      'Sustituyen la configuración de negocio que antes iba en `.env` (cron, estados, cupos, etc.).',
+      'Sustituyen la configuración de negocio que antes iba en `.env` (cron, estados, cupos, etc.). ' +
+      'Solo lectura; para editar use **Admin — Variables** (`PATCH /admin/variables/{id}`).',
+  })
+  @ApiOkResponse({
+    type: VariableAdminSchema,
+    isArray: true,
+    schema: { example: [VARIABLE_ADMIN_EJEMPLO] },
   })
   variables() {
     return this.listVariables.execute();

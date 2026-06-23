@@ -198,12 +198,45 @@ export class UpdatePedidoBodyDto {
   @MaxLength(200)
   tipoProductoNombre?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Peso en kilogramos (límite: PAQUETE_PESO_MAX_KG en public.variable).' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
+  @Min(0.001)
   pesoKg?: number;
+
+  @ApiPropertyOptional({ description: 'Alto del paquete en centímetros (límite: PAQUETE_ALTO_MAX_CM).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  altoCm?: number;
+
+  @ApiPropertyOptional({ description: 'Ancho del paquete en centímetros (límite: PAQUETE_ANCHO_MAX_CM).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  anchoCm?: number;
+
+  @ApiPropertyOptional({ description: 'Largo del paquete en centímetros (límite: PAQUETE_LARGO_MAX_CM).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  largoCm?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Política de responsabilidad / seguro (`paquete.fk_politica_responsabilidad`). `null` para quitar.',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v != null)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idPoliticaResponsabilidad?: number | null;
 
   @ApiPropertyOptional({ description: 'Se guarda en descripcion_seguimiento (manifiesto)' })
   @IsOptional()

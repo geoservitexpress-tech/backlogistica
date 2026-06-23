@@ -143,6 +143,10 @@ CREATE TABLE public.paquete (
   nombre varchar(200) NOT NULL,
   peso double precision NOT NULL,
   precio numeric(14, 4) NOT NULL,
+  alto_cm double precision NULL,
+  ancho_cm double precision NULL,
+  largo_cm double precision NULL,
+  fk_politica_responsabilidad integer NULL,
   creado_en timestamptz NOT NULL DEFAULT now()
 );
 

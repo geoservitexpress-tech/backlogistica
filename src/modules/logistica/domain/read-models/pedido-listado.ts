@@ -40,6 +40,10 @@ export interface PedidoListado {
   fotosPaqueteUrls: string[] | null;
   pagadoPorRemitente: boolean;
   precio: number;
+  pesoKg: number | null;
+  altoCm: number | null;
+  anchoCm: number | null;
+  largoCm: number | null;
   /** Teléfono del repartidor asignado (para llamar desde la app). */
   usuarioRepartidorTelefono: string | null;
   /** Última observación de entrega registrada por el repartidor (descripcion_seguimiento). */
