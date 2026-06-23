@@ -2,7 +2,7 @@ import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common
 import { VAR } from '../../../configuracion/variable.keys';
 import { VariablesService } from '../../../configuracion/variables.service';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, FindOptionsWhere, In, QueryFailedError, Repository } from 'typeorm';
+import { Between, DataSource, FindOptionsWhere, In, QueryFailedError, Repository, SelectQueryBuilder } from 'typeorm';
 import type { PedidoListado } from '../../domain/read-models/pedido-listado';
 import type { ListPedidosFilter } from '../../domain/ports/pedido-read.port';
 import { PedidoReadPort } from '../../domain/ports/pedido-read.port';
@@ -98,12 +98,49 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
     }
   }
 
-  async listPedidos(filter: ListPedidosFilter): Promise<Paginado<PedidoListado>> {
-    const base = {
-      relations: [...PEDIDO_RELATIONS],
-      order: { creadoEn: 'DESC' as const },
-    };
+  private createListQueryBuilder(filter: ListPedidosFilter): SelectQueryBuilder<PedidoOrmEntity> {
+    const qb = this.repo.createQueryBuilder('p');
 
+    if (filter.direccion?.trim()) {
+      qb.innerJoin('p.direccion', 'd')
+        .leftJoin('d.ciudad', 'ciudad')
+        .leftJoin('d.departamento', 'depto')
+        .leftJoin('d.zonaBogota', 'zonaBogota');
+      const term = `%${filter.direccion.trim()}%`;
+      qb.andWhere(
+        `(d.zona ILIKE :dirTerm
+          OR d.observaciones ILIKE :dirTerm
+          OR d.numero_principal ILIKE :dirTerm
+          OR d.numero_secundario ILIKE :dirTerm
+          OR ciudad.nombre ILIKE :dirTerm
+          OR depto.nombre ILIKE :dirTerm
+          OR zonaBogota.nombre ILIKE :dirTerm)`,
+        { dirTerm: term },
+      );
+    }
+
+    if (filter.idPedido) {
+      qb.andWhere('p.id_pedido = :idPedido', { idPedido: filter.idPedido });
+    }
+    if (filter.idUsuario) {
+      qb.andWhere('p.fk_usuario_solicitud = :idUsuario', { idUsuario: filter.idUsuario });
+    }
+    if (filter.idRepartidor) {
+      qb.andWhere('p.fk_usuario_repartidor = :idRepartidor', { idRepartidor: filter.idRepartidor });
+    }
+    if (filter.fechaEntrega) {
+      qb.andWhere('p.fecha_entrega = :fechaEntrega::date', { fechaEntrega: filter.fechaEntrega });
+    }
+    if (filter.idsEstadoPedido?.length) {
+      qb.andWhere('p.fk_estado_pedido IN (:...idsEstadoPedido)', {
+        idsEstadoPedido: filter.idsEstadoPedido,
+      });
+    }
+
+    return qb;
+  }
+
+  async listPedidos(filter: ListPedidosFilter): Promise<Paginado<PedidoListado>> {
     const offset = (filter.page - 1) * filter.limit;
     const t0 = Date.now();
     const tzModo =
@@ -113,49 +150,78 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
     const filtroDesc = [
       filter.fecha ? `creado=${filter.fecha} tz=${tzModo}` : null,
       filter.fechaEntrega ? `fecha_entrega=${filter.fechaEntrega}` : null,
+      filter.idUsuario ? `proveedor=${filter.idUsuario}` : null,
+      filter.idRepartidor ? `mensajero=${filter.idRepartidor}` : null,
+      filter.direccion ? `direccion=${filter.direccion}` : null,
       filter.idsEstadoPedido?.length ? `estados=${filter.idsEstadoPedido.join(',')}` : null,
       filter.idPedido ? `id_pedido=${filter.idPedido}` : null,
     ]
       .filter(Boolean)
-      .join(' ') || 'sin filtro fecha';
-
-    const where: FindOptionsWhere<PedidoOrmEntity> = {};
-    if (filter.idPedido) {
-      where.idPedido = filter.idPedido;
-    }
-    if (filter.idUsuario) {
-      where.usuarioSolicitud = { idUsuario: filter.idUsuario };
-    }
-    if (filter.idRepartidor) {
-      where.usuarioRepartidor = { idUsuario: filter.idRepartidor };
-    }
-    if (filter.fechaEntrega) {
-      where.fechaEntrega = new Date(`${filter.fechaEntrega}T12:00:00.000Z`);
-    }
-    if (filter.idsEstadoPedido?.length) {
-      where.estadoPedido = { idEstadoPedido: In(filter.idsEstadoPedido) };
-    }
+      .join(' ') || 'sin filtro';
 
     try {
-      if (filter.fecha) {
-        const { desde, hasta } = await rangoParaFiltroCreadoEn(filter.fecha, this.variables);
-        where.creadoEn = Between(desde, hasta);
+      const usaQueryBuilder =
+        Boolean(filter.direccion?.trim()) ||
+        Boolean(filter.idUsuario) ||
+        filter.idRepartidor != null ||
+        Boolean(filter.fechaEntrega) ||
+        Boolean(filter.idsEstadoPedido?.length) ||
+        filter.idPedido != null;
+
+      let rows: PedidoOrmEntity[];
+      let total: number;
+
+      if (usaQueryBuilder) {
+        const qb = this.createListQueryBuilder(filter);
+        if (filter.fecha) {
+          const { desde, hasta } = await rangoParaFiltroCreadoEn(filter.fecha, this.variables);
+          qb.andWhere('p.creado_en BETWEEN :desde AND :hasta', { desde, hasta });
+        }
+
+        total = Number(
+          (
+            await qb.clone().select('COUNT(DISTINCT p.id_pedido)', 'total').getRawOne<{ total: string }>()
+          )?.total ?? 0,
+        );
+
+        const idRows = await qb
+          .select('p.id_pedido', 'id_pedido')
+          .distinct(true)
+          .orderBy('p.creado_en', 'DESC')
+          .offset(offset)
+          .limit(filter.limit)
+          .getRawMany<{ id_pedido: number }>();
+
+        const ids = idRows.map((r) => Number(r.id_pedido));
+        rows =
+          ids.length > 0
+            ? await this.repo.find({
+                where: { idPedido: In(ids) },
+                relations: [...PEDIDO_RELATIONS],
+                order: { creadoEn: 'DESC' },
+              })
+            : [];
+      } else {
+        const where: FindOptionsWhere<PedidoOrmEntity> = {};
+        if (filter.fecha) {
+          const { desde, hasta } = await rangoParaFiltroCreadoEn(filter.fecha, this.variables);
+          where.creadoEn = Between(desde, hasta);
+        }
+        [rows, total] = await this.repo.findAndCount({
+          relations: [...PEDIDO_RELATIONS],
+          order: { creadoEn: 'DESC' },
+          where,
+          skip: offset,
+          take: filter.limit,
+        });
       }
 
-      const [rows, total] = await this.repo.findAndCount({
-        ...base,
-        where,
-        skip: offset,
-        take: filter.limit,
-      });
       const out = await Promise.all(
         rows.map(async (row) =>
           enriquecerPedidoListadoDesdeStorage(this.evidencias, this.dataSource, row, pedidoOrmToListado(row)),
         ),
       );
-      this.logger.log(
-        `listPedidos ${filtroDesc} idUsuario=${filter.idUsuario ?? 'todos'} idRepartidor=${filter.idRepartidor ?? 'todos'} total=${total} page=${filter.page} ${Date.now() - t0}ms`,
-      );
+      this.logger.log(`listPedidos ${filtroDesc} total=${total} page=${filter.page} ${Date.now() - t0}ms`);
       return buildPaginado(out, total, filter.page, filter.limit);
     } catch (e) {
       this.rethrowIfMissingRelation(e);

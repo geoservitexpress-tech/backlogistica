@@ -31,6 +31,7 @@ import {
   EJEMPLO_ENTREGA_NO_ENTREGADO,
   EJEMPLO_RESPUESTA_PEDIDO_ENTREGADO,
 } from '../../../../swagger/ejemplos/confirmar-entrega-repartidor.ejemplos';
+import { EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS } from '../../../../swagger/ejemplos/pedidos.ejemplos';
 import { AuthService } from '../../../auth/auth.service';
 import { CurrentSupabaseUser } from '../../../auth/decorators/current-supabase-user.decorator';
 import { RepartidorRoleGuard } from '../../../auth/guards/repartidor-role.guard';
@@ -41,7 +42,7 @@ import { RepartidorAceptarPedidoUseCase } from '../../application/repartidor-ace
 import { RepartidorRecibirPedidoUseCase } from '../../application/repartidor-recibir-pedido.use-case';
 import { RepartidorConfirmarEntregaUseCase } from '../../application/repartidor-confirmar-entrega.use-case';
 import { RepartidorConfirmarRecogidaUseCase } from '../../application/repartidor-confirmar-recogida.use-case';
-import { PedidoListadoPaginadoSchema, PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
+import { PedidoListadoPaginadoSchema, PedidoListadoSchema, PEDIDO_LISTADO_PAGINADO_EJEMPLO } from '../../../../swagger/schemas/pedido-listado.schema';
 import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import {
   ESTADO_PEDIDO_ASIGNADO_ID,
@@ -50,10 +51,10 @@ import {
   ESTADO_PEDIDO_RECIBIDO_REPARTIDOR_ID,
 } from '../../logistica-pedido-estados.constants';
 import { ConfirmarEntregaRepartidorBodyDto } from './dto/confirmar-entrega-repartidor.body.dto';
-import { PaginacionQueryDto } from './dto/paginacion.query.dto';
+import { ListPedidosRepartidorQueryDto } from './dto/list-pedidos-repartidor.query.dto';
 
 @ApiTags('Repartidor')
-@ApiExtraModels(ConfirmarEntregaRepartidorBodyDto, PedidoListadoPaginadoSchema)
+@ApiExtraModels(ConfirmarEntregaRepartidorBodyDto, PedidoListadoPaginadoSchema, ListPedidosRepartidorQueryDto)
 @ApiBearerAuth('supabase-jwt')
 @ApiUnauthorizedResponse({
   description:
@@ -76,6 +77,9 @@ export class RepartidorPedidosController {
     summary: 'Mis pedidos asignados',
     description:
       'Lista pedidos donde `fk_usuario_repartidor` = el repartidor del JWT.\n\n' +
+      'Filtros: **`fecha`** (creación), **`fechaEntrega`**, **`idProveedor`** (cliente solicitante), **`direccion`** (texto en vía/ciudad). ' +
+      'Combinables con paginación (`page`, `limit`). El mensajero queda fijado por el JWT.\n\n' +
+      `**Ejemplo de query:** \`?fecha=${EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS.fecha}&fechaEntrega=${EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS.fechaEntrega}&idProveedor=${EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS.idProveedor}&direccion=${EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS.direccion}\`\n\n` +
       '**Front:** botón **Recibir** si `idEstadoPedido === 2`; botón **En curso** si `idEstadoPedido === 3`.\n\n' +
       '**Flujo:**\n' +
       `1. Cron → **Asignado** (**${ESTADO_PEDIDO_ASIGNADO_ID}**)\n` +
@@ -84,11 +88,16 @@ export class RepartidorPedidosController {
       `4. \`POST …/confirmar-entrega\` → **Entregado** (**${ESTADO_PEDIDO_ENTREGADO_ID}**)\n\n` +
       'Paginación: `page`, `limit`, `totalPaginas` en la respuesta.',
   })
-  @ApiOkResponse({ type: PedidoListadoPaginadoSchema })
+  @ApiOkResponse({
+    type: PedidoListadoPaginadoSchema,
+    description: 'Mis pedidos paginados',
+    schema: { example: PEDIDO_LISTADO_PAGINADO_EJEMPLO },
+  })
+  @ApiBadRequestResponse({ description: '`fecha` o `fechaEntrega` inválida' })
   @ApiForbiddenResponse({ description: 'El usuario no tiene rol REPARTIDOR' })
   async listar(
     @CurrentSupabaseUser() jwt: SupabaseJwtPayload,
-    @Query() query: PaginacionQueryDto,
+    @Query() query: ListPedidosRepartidorQueryDto,
   ) {
     const idRepartidor = await this.auth.idUsuarioFromAuthSub(jwt.sub);
     return this.listMisPedidos.execute(idRepartidor, query);

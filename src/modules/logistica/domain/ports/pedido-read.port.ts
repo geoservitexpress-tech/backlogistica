@@ -16,6 +16,8 @@ export interface ListPedidosFilter {
   idRepartidor?: number;
   /** Filtra por `estado_pedido.id_estado_pedido` (OR). */
   idsEstadoPedido?: number[];
+  /** Busca en vía, placas, observaciones, ciudad, localidad Bogotá (`direccion` del pedido). */
+  direccion?: string;
 }
 
 export interface PedidoReadPort {

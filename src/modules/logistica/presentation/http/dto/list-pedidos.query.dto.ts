@@ -1,40 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Matches, Min } from 'class-validator';
-import { SWAGGER_EJEMPLO_ID_PEDIDO, SWAGGER_EJEMPLO_ID_USUARIO } from '../../../../../swagger/swagger-ejemplos';
-import { PaginacionQueryDto } from './paginacion.query.dto';
+import { IsInt, IsOptional, Min } from 'class-validator';
+import { ListPedidosFiltrosQueryDto } from './list-pedidos-filtros.query.dto';
 
-export class ListPedidosQueryDto extends PaginacionQueryDto {
+export class ListPedidosQueryDto extends ListPedidosFiltrosQueryDto {
   @ApiPropertyOptional({
     type: 'integer',
-    description:
-      'Filtra por `pedidos.id_pedido`. La respuesta paginada tendrá como máximo un registro en `items`. ' +
-      'Para un solo objeto y 404 si no existe, use **GET /pedidos/{id}**.',
-    example: SWAGGER_EJEMPLO_ID_PEDIDO,
+    example: 2,
+    description: 'Mensajero / repartidor asignado (`pedidos.fk_usuario_repartidor`).',
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  idPedido?: number;
-
-  @ApiPropertyOptional({
-    description: 'Filtra por día de `creado_en` (formato YYYY-MM-DD).',
-    example: '2026-05-10',
-  })
-  @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'fecha debe ser YYYY-MM-DD' })
-  fecha?: string;
-
-  @ApiPropertyOptional({
-    type: 'integer',
-    example: SWAGGER_EJEMPLO_ID_USUARIO,
-    description:
-      'Filtra por `usuarios.id_usuario` (entero). Valor en **GET /auth/me** → `idUsuario`.',
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  idUsuario?: number;
+  idMensajero?: number;
 }

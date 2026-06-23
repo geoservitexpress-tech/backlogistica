@@ -34,12 +34,14 @@ import { GetPedidoByIdUseCase } from '../../application/get-pedido-by-id.use-cas
 import { GetPedidoByNumGuiaUseCase } from '../../application/get-pedido-by-num-guia.use-case';
 import { ListPedidosUseCase } from '../../application/list-pedidos.use-case';
 import { UpdatePedidoUseCase } from '../../application/update-pedido.use-case';
-import { PedidoListadoPaginadoSchema, PedidoListadoSchema } from '../../../../swagger/schemas/pedido-listado.schema';
+import { PedidoListadoPaginadoSchema, PedidoListadoSchema, PEDIDO_LISTADO_PAGINADO_EJEMPLO } from '../../../../swagger/schemas/pedido-listado.schema';
 import {
   EJEMPLO_CREAR_PEDIDO_CON_FOTOS_PAQUETE,
   EJEMPLO_CREAR_PEDIDO_DESPACHO_BOGOTA,
   EJEMPLO_CREAR_PEDIDO_RECOGIDA,
   EJEMPLO_PATCH_PEDIDO_ESTADO,
+  EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS,
+  EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA,
 } from '../../../../swagger/ejemplos/pedidos.ejemplos';
 import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../../../../swagger/swagger-ejemplos';
 import { CreatePedidoBodyDto } from './dto/create-pedido.body.dto';
@@ -48,7 +50,7 @@ import { ListPedidosQueryDto } from './dto/list-pedidos.query.dto';
 import { UpdatePedidoBodyDto } from './dto/update-pedido.body.dto';
 
 @ApiTags('Pedidos')
-@ApiExtraModels(CreatePedidoBodyDto, PedidoDestinoEntregaBodyDto)
+@ApiExtraModels(CreatePedidoBodyDto, PedidoDestinoEntregaBodyDto, ListPedidosQueryDto)
 @ApiBearerAuth('supabase-jwt')
 @ApiUnauthorizedResponse({
   description:
@@ -71,20 +73,21 @@ export class PedidosController {
     summary: 'Listar pedidos',
     description:
       'Devuelve pedidos con tipo, estado, método, usuarios, paquete y dirección en **texto legible** (nomenclatura urbana CO en `direccion`). ' +
-      'Filtros opcionales: **`idPedido`**, **`fecha`** (día de `creado_en`), **`idUsuario`**. ' +
+      'Filtros de operaciones: **`fecha`** (creación), **`fechaEntrega`**, **`idProveedor`** (cliente solicitante), **`idMensajero`** (repartidor), **`direccion`** (texto en vía/ciudad). ' +
       'Paginación: `page` (default 1), `limit` (default 20); la respuesta incluye `total`, `totalPaginas` e `items`. ' +
-      'Para consultar **un pedido por id** con respuesta 404 explícita, prefiera **GET /pedidos/{id}**.',
+      'Para consultar **un pedido por id** con respuesta 404 explícita, prefiera **GET /pedidos/{id}**.\n\n' +
+      '**Ejemplos de query:**\n' +
+      `- Por fecha: \`?fecha=${EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA.fecha}&page=${EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA.page}&limit=${EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA.limit}\`\n` +
+      `- Filtros combinados: \`?fecha=${EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS.fecha}&fechaEntrega=${EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS.fechaEntrega}&idProveedor=${EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS.idProveedor}&idMensajero=${EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS.idMensajero}&direccion=${EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS.direccion}\``,
   })
-  @ApiOkResponse({ type: PedidoListadoPaginadoSchema })
+  @ApiOkResponse({
+    type: PedidoListadoPaginadoSchema,
+    description: 'Listado paginado',
+    schema: { example: PEDIDO_LISTADO_PAGINADO_EJEMPLO },
+  })
   @ApiBadRequestResponse({ description: '`fecha` inválida o parámetros de query mal formados' })
   list(@Query() query: ListPedidosQueryDto) {
-    return this.listPedidos.execute({
-      ...(query.idPedido != null && { idPedido: query.idPedido }),
-      ...(query.fecha && { fecha: query.fecha }),
-      ...(query.idUsuario && { idUsuario: query.idUsuario }),
-      page: query.page,
-      limit: query.limit,
-    });
+    return this.listPedidos.execute(query);
   }
 
   @Post()

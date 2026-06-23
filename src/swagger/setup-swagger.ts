@@ -1,5 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import {
+  EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS,
+  EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA,
+  EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS,
+} from './ejemplos/pedidos.ejemplos';
 import { SWAGGER_EJEMPLO_CORREO } from './swagger-ejemplos';
 
 export function setupSwagger(app: INestApplication): void {
@@ -7,7 +12,7 @@ export function setupSwagger(app: INestApplication): void {
     .setTitle('Backlogistica API')
     .setDescription(
       'API REST de logística (NestJS, arquitectura hexagonal). ' +
-        'Pedidos: listado con filtros (`idPedido`, `fecha`, `idUsuario` entero), **GET /pedidos/{id}**, **GET /pedidos/guia/{numGuia}**, alta y PATCH. ' +
+        'Pedidos: listado con filtros (`fecha`, `fechaEntrega`, `idProveedor`, `idMensajero`, `direccion`, `idPedido`), **GET /pedidos/{id}**, **GET /pedidos/guia/{numGuia}**, alta y PATCH. ' +
         'La dirección en respuestas usa nomenclatura colombiana (`zona` = número antes del `#`; placas en principal/secundario). ' +
         '**Repartidor**: `GET /repartidor/pedidos` → `POST …/recibir` (2→3) → `POST …/aceptar` (3→4) → `POST …/confirmar-entrega`. ' +
         '**Supervisor**: `GET /supervisor/pedidos/en-reparto` (hoy, estados 2–4) · `PATCH /supervisor/pedidos/{id}` (sin manifiesto/fotos). ' +
@@ -34,11 +39,11 @@ export function setupSwagger(app: INestApplication): void {
     )
     .addTag(
       'Pedidos',
-      'Listar, consultar por **id** (`GET /pedidos/{id}` o `?idPedido=`), por guía, crear y actualizar',
+      'Listar, consultar por **id** (`GET /pedidos/{id}` o `?idPedido=`), por guía, crear y actualizar. Filtros de operaciones en **GET /pedidos**.',
     )
     .addTag(
       'Repartidor',
-      'App repartidor: mis pedidos · recibir (2→3) · aceptar (3→4) · confirmar-entrega',
+      'App repartidor: mis pedidos (filtros `fecha`, `fechaEntrega`, `idProveedor`, `direccion`) · recibir (2→3) · aceptar (3→4) · confirmar-entrega',
     )
     .addTag(
       'Supervisor',
@@ -53,6 +58,19 @@ export function setupSwagger(app: INestApplication): void {
     operationIdFactory: (controllerKey: string, methodKey: string) =>
       `${controllerKey.replace(/Controller$/i, '')}_${methodKey}`,
   });
+
+  const schemas = document.components?.schemas;
+  if (schemas?.ListPedidosQueryDto && typeof schemas.ListPedidosQueryDto === 'object') {
+    (schemas.ListPedidosQueryDto as Record<string, unknown>).example = EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS;
+  }
+  if (schemas?.ListPedidosFiltrosQueryDto && typeof schemas.ListPedidosFiltrosQueryDto === 'object') {
+    (schemas.ListPedidosFiltrosQueryDto as Record<string, unknown>).example =
+      EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA;
+  }
+  if (schemas?.ListPedidosRepartidorQueryDto && typeof schemas.ListPedidosRepartidorQueryDto === 'object') {
+    (schemas.ListPedidosRepartidorQueryDto as Record<string, unknown>).example =
+      EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS;
+  }
 
   SwaggerModule.setup('docs', app, document, {
     jsonDocumentUrl: 'docs/json',

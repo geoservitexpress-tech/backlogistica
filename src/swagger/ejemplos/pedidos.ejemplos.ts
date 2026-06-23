@@ -14,6 +14,35 @@ import {
 } from '../../modules/logistica/logistica-metodo-recepcion.constants';
 import { TIPO_PEDIDO_ID_NORMAL } from '../../modules/logistica/logistica-tipo-pedido.constants';
 import { EJEMPLO_FOTO_PAQUETE_DATA_URL } from '../../modules/logistica/presentation/http/ejemplo-foto-paquete.data-url';
+import { SWAGGER_EJEMPLO_ID_USUARIO } from '../swagger-ejemplos';
+
+/** GET /pedidos — filtro por día de creación. */
+export const EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA = {
+  fecha: '2026-05-10',
+  page: 1,
+  limit: 20,
+} as const;
+
+/** GET /pedidos — filtros de operaciones combinados. */
+export const EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS = {
+  fecha: '2026-05-10',
+  fechaEntrega: '2026-05-20',
+  idProveedor: SWAGGER_EJEMPLO_ID_USUARIO,
+  idMensajero: 2,
+  direccion: '11b',
+  page: 1,
+  limit: 20,
+} as const;
+
+/** GET /repartidor/pedidos — mis pedidos con filtros (mensajero = JWT). */
+export const EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS = {
+  fecha: '2026-05-10',
+  fechaEntrega: '2026-05-20',
+  idProveedor: SWAGGER_EJEMPLO_ID_USUARIO,
+  direccion: '11b',
+  page: 1,
+  limit: 20,
+} as const;
 
 /** POST /pedidos — recogida: raíz = punto de recogida; `destinoEntrega` = entrega final. */
 export const EJEMPLO_CREAR_PEDIDO_RECOGIDA = {

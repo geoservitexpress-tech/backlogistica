@@ -1,4 +1,44 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ESTADO_PEDIDO_ASIGNADO_ID } from '../../modules/logistica/logistica-pedido-estados.constants';
+import { TIPO_PEDIDO_ID_NORMAL } from '../../modules/logistica/logistica-tipo-pedido.constants';
+import { SWAGGER_EJEMPLO_ID_PEDIDO } from '../swagger-ejemplos';
+
+/** Ítem típico de `GET /pedidos` y `GET /repartidor/pedidos`. */
+export const PEDIDO_LISTADO_EJEMPLO = {
+  idPedido: SWAGGER_EJEMPLO_ID_PEDIDO,
+  numGuia: 'BL-20260510-19B426',
+  creadoEn: '2026-05-10T15:30:00.000Z',
+  tipoPedido: 'Normal',
+  tipoOperacion: 'DESPACHO',
+  fechaEntrega: '2026-05-20',
+  idEstadoPedido: ESTADO_PEDIDO_ASIGNADO_ID,
+  estadoPedido: 'Asignado',
+  idTipoPedido: TIPO_PEDIDO_ID_NORMAL,
+  metodoRecepcion: 'Entrega',
+  usuarioSolicitud: 'Juan Pérez',
+  usuarioRecolector: null,
+  usuarioRepartidor: 'Carlos Repartidor',
+  paquete: 'Electrónicos',
+  direccion: 'Bogotá, Bogotá D.C., Calle 11b # 15-40, Torre norte, apto 502',
+  idZonaBogota: 1,
+  zonaBogota: 'Usaquén',
+  destinatarioNombre: 'María Pérez',
+  destinatarioTelefono: '3001234567',
+  direccionDestino: null,
+  destinatarioDestinoNombre: null,
+  destinatarioDestinoTelefono: null,
+  fragil: true,
+  observacionesManifiesto: 'Manipular con cuidado, llamar al recibir.',
+  fotosPaqueteUrls: ['https://example.supabase.co/storage/v1/object/public/evidencias/pedidos/1/foto-1.jpg'],
+} as const;
+
+export const PEDIDO_LISTADO_PAGINADO_EJEMPLO = {
+  total: 42,
+  page: 1,
+  limit: 20,
+  totalPaginas: 3,
+  items: [PEDIDO_LISTADO_EJEMPLO],
+} as const;
 
 /** Esquema OpenAPI del JSON de `GET /pedidos` (relaciones resueltas solo como texto). */
 export class PedidoListadoSchema {
