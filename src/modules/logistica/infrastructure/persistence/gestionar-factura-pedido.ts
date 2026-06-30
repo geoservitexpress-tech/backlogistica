@@ -12,6 +12,7 @@ import {
   ESTADO_PEDIDO_CANCELADO_ID,
   ESTADO_PEDIDO_ENTREGADO_ID,
   ESTADO_PEDIDO_NO_ENTREGADO_ID,
+  ESTADO_PEDIDO_DEVUELTO_ID,
 } from '../../logistica-pedido-estados.constants';
 import { lineaNomenclaturaColombiana } from '../../application/direccion-colombiana-texto';
 import type { DireccionOrmEntity } from './direccion.orm-entity';
@@ -30,7 +31,8 @@ export function esEstadoPedidoTerminalFactura(idEstadoPedido: number): boolean {
   return (
     idEstadoPedido === ESTADO_PEDIDO_ENTREGADO_ID ||
     idEstadoPedido === ESTADO_PEDIDO_CANCELADO_ID ||
-    idEstadoPedido === ESTADO_PEDIDO_NO_ENTREGADO_ID
+    idEstadoPedido === ESTADO_PEDIDO_NO_ENTREGADO_ID ||
+    idEstadoPedido === ESTADO_PEDIDO_DEVUELTO_ID
   );
 }
 

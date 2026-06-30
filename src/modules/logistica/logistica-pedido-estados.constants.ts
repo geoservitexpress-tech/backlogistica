@@ -6,6 +6,7 @@ export const ESTADO_PEDIDO_EN_CURSO_ID = 4;
 export const ESTADO_PEDIDO_ENTREGADO_ID = 5;
 export const ESTADO_PEDIDO_CANCELADO_ID = 6;
 export const ESTADO_PEDIDO_NO_ENTREGADO_ID = 7;
+export const ESTADO_PEDIDO_DEVUELTO_ID = 8;
 
 /** @deprecated Usar `ESTADO_PEDIDO_CREADO_ID`; el catálogo ya no tiene «Pendiente». */
 export const ESTADO_PEDIDO_PENDIENTE_ID = ESTADO_PEDIDO_CREADO_ID;

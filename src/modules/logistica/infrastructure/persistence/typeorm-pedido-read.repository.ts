@@ -186,11 +186,12 @@ export class TypeOrmPedidoReadRepository implements PedidoReadPort {
 
         const idRows = await qb
           .select('p.id_pedido', 'id_pedido')
+          .addSelect('p.creado_en', 'creado_en')
           .distinct(true)
           .orderBy('p.creado_en', 'DESC')
           .offset(offset)
           .limit(filter.limit)
-          .getRawMany<{ id_pedido: number }>();
+          .getRawMany<{ id_pedido: number; creado_en: Date }>();
 
         const ids = idRows.map((r) => Number(r.id_pedido));
         rows =
