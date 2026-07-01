@@ -299,7 +299,7 @@ export class AuthService {
   async login(dto: LoginDto): Promise<AuthTokensDto> {
     const url = this.supabaseUrl();
     const anon = createSupabaseAnonClient(url, this.anonKey());
-    const correoNorm = dto.correo.trim().toLowerCase();
+    const correoNorm = dto.resolvedCorreo();
     this.logger.log(`login inicio correo=${correoNorm}`);
 
     const { data, error } = await anon.auth.signInWithPassword({

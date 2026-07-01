@@ -41,8 +41,15 @@ export class HttpRequestLoggingInterceptor implements NestInterceptor {
         }
         req.resolvedHttpStatus = status;
         const msg = err instanceof Error ? err.message : String(err);
+        const detail =
+          err instanceof HttpException
+            ? JSON.stringify(err.getResponse())
+            : undefined;
         const stack = err instanceof Error ? err.stack : undefined;
-        this.logger.error(`${method} ${path} → ${status} ${msg}`, stack);
+        this.logger.error(
+          `${method} ${path} → ${status} ${msg}${detail ? ` ${detail}` : ''}`,
+          stack,
+        );
         return throwError(() => err);
       }),
       finalize(() => {

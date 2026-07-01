@@ -69,7 +69,7 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   @ApiUnauthorizedResponse({ description: 'Credenciales incorrectas' })
   login(@Body() body: LoginDto) {
-    this.logger.log(`POST /auth/login correo=${body.correo}`);
+    this.logger.log(`POST /auth/login correo=${body.resolvedCorreo()}`);
     return this.auth.login(body);
   }
 
