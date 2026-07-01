@@ -181,6 +181,7 @@ CREATE TABLE public.pedidos (
   fk_destinatario integer REFERENCES public.destinatario (id_destinatario),
   fk_destinatario_destino integer REFERENCES public.destinatario (id_destinatario),
   precio numeric(14, 4) NOT NULL,
+  tarifa_envio numeric(14, 4) NULL,
   valor_declarado numeric(14, 4) NOT NULL,
   fecha_entrega date NOT NULL,
   es_fragil boolean NOT NULL DEFAULT false,

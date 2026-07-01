@@ -40,6 +40,8 @@ export interface PedidoListado {
   fotosPaqueteUrls: string[] | null;
   pagadoPorRemitente: boolean;
   precio: number;
+  /** Tarifa de domicilio al crear (`pedidos.tarifa_envio`). */
+  tarifaEnvio: number | null;
   pesoKg: number | null;
   altoCm: number | null;
   anchoCm: number | null;

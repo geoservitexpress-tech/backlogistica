@@ -1,0 +1,1 @@
+export const LIQUIDACION_CLIENTE = Symbol('LIQUIDACION_CLIENTE');

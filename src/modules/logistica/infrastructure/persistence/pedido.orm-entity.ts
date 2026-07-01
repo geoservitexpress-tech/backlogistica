@@ -69,6 +69,10 @@ export class PedidoOrmEntity {
   @Column({ name: 'precio', type: 'numeric', precision: 14, scale: 4 })
   precio!: number;
 
+  /** Tarifa de domicilio al crear; se cobra aunque no se complete la entrega. */
+  @Column({ name: 'tarifa_envio', type: 'numeric', precision: 14, scale: 4, nullable: true })
+  tarifaEnvio!: number | null;
+
   /** Valor declarado del contenido (NOT NULL en muchas BD). */
   @Column({ name: 'valor_declarado', type: 'numeric', precision: 14, scale: 4 })
   valorDeclarado!: number;

@@ -51,18 +51,23 @@ export function calcularEstadoFacturaCierre(monto: number, montoCobrado: number)
   return ESTADO_FACTURA_POR_COBRAR_ID;
 }
 
-/** Total cobrado al cierre (respeta prepago al crear la factura). */
+/** Total cobrado de la tarifa de envío al cierre de factura (no incluye COD del producto). */
 export function montoCobradoAlCierre(
   pedido: PedidoOrmEntity,
   factura: Pick<FacturaOrmEntity, 'pagadoAlCrear' | 'montoCobrado'>,
 ): number {
+  const tarifa = Number(pedido.tarifaEnvio ?? pedido.precio ?? 0);
   if (factura.pagadoAlCrear) {
-    return Number(factura.montoCobrado ?? pedido.precio ?? 0);
+    return Number(factura.montoCobrado ?? tarifa);
   }
   if (pedido.pagadoPorRemitente) {
-    return Number(pedido.precio ?? 0);
+    return tarifa;
   }
-  return Number(pedido.valorRecaudado ?? 0);
+  return 0;
+}
+
+export function tarifaEnvioPedido(pedido: Pick<PedidoOrmEntity, 'tarifaEnvio' | 'precio'>): number {
+  return Number(pedido.tarifaEnvio ?? pedido.precio ?? 0);
 }
 
 export async function tablaFacturaDisponible(manager: EntityManager): Promise<boolean> {
@@ -171,7 +176,7 @@ export async function cerrarFacturaSiPedidoTerminal(
   }
 
   const now = new Date();
-  const monto = Number(pedido.precio ?? factura.monto);
+  const monto = tarifaEnvioPedido(pedido);
   const montoCobrado = montoCobradoAlCierre(pedido, factura);
   const idEstado = calcularEstadoFacturaCierre(monto, montoCobrado);
 

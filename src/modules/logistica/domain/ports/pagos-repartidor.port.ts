@@ -22,11 +22,30 @@ export type PagosRepartidorKpis = {
   porcentajeMetaDiaria: number;
 };
 
+export type DispersionPedidoPendiente = {
+  idPedido: number;
+  numGuia: string;
+  fechaEntrega: string;
+};
+
 export type DispersionRepartidorLinea = {
+  idUsuario: number;
   codigo: string;
   nombre: string;
   entregas: number;
+  tarifaUnitaria: number;
   monto: number;
+  pedidos: DispersionPedidoPendiente[];
+};
+
+export type DispersionRepartidorPreview = {
+  fecha: string;
+  tarifaUnitaria: number;
+  moneda: 'COP';
+  entregasTotal: number;
+  montoTotal: number;
+  repartidoresTotal: number;
+  lineas: DispersionRepartidorLinea[];
 };
 
 export type DispersionRepartidorResultado = {
@@ -36,7 +55,25 @@ export type DispersionRepartidorResultado = {
   repartidoresTotal: number;
   moneda: 'COP';
   generadoEn: string;
+  /** Día de entrega liquidado (YYYY-MM-DD). */
+  fecha: string;
+  tarifaUnitaria: number;
   lineas: DispersionRepartidorLinea[];
+};
+
+/** Pago registrado para un solo repartidor. */
+export type DispersionRepartidorIndividualResultado = {
+  idDispersion: number;
+  idUsuario: number;
+  codigo: string;
+  nombre: string;
+  fecha: string;
+  tarifaUnitaria: number;
+  entregas: number;
+  monto: number;
+  moneda: 'COP';
+  generadoEn: string;
+  pedidos: DispersionPedidoPendiente[];
 };
 
 export type ListRepartidoresPagoFilter = {
@@ -52,5 +89,10 @@ export type ListRepartidoresPagoFilter = {
 export interface PagosRepartidorPort {
   getKpis(): Promise<PagosRepartidorKpis>;
   listRepartidores(filter: ListRepartidoresPagoFilter): Promise<RepartidorPagoListadoPaginado>;
-  generarDispersionTotal(): Promise<DispersionRepartidorResultado>;
+  previewDispersion(fecha?: string, idUsuarioRepartidor?: number): Promise<DispersionRepartidorPreview>;
+  generarDispersionTotal(fecha?: string): Promise<DispersionRepartidorResultado>;
+  generarDispersionRepartidor(
+    idUsuarioRepartidor: number,
+    fecha?: string,
+  ): Promise<DispersionRepartidorIndividualResultado>;
 }

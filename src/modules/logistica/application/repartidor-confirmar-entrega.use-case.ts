@@ -244,27 +244,18 @@ export class RepartidorConfirmarEntregaUseCase {
         }
       }
 
-      const patchPedido: {
-        pagadoPorRemitente: boolean;
-        fkMetodoPago: number | null;
-        valorRecaudado: number;
-        precio?: number;
-      } = {
+      const patchPedido = {
         pagadoPorRemitente: body.pagadoPorRemitente,
         fkMetodoPago: idMetodoPago,
         valorRecaudado: body.valorRecaudado,
       };
-      if (!body.pagadoPorRemitente && body.valorRecaudado > 0) {
-        patchPedido.precio = body.valorRecaudado;
-      }
 
       await manager.query(
         `update pedidos set
            fk_estado_pedido = $2::int,
            pagado_por_remitente = $3,
            fk_metodo_pago = $4::int,
-           valor_recaudado = $5,
-           precio = coalesce($6::numeric, precio)
+           valor_recaudado = $5
          where id_pedido = $1::int`,
         [
           idPedido,
@@ -272,7 +263,6 @@ export class RepartidorConfirmarEntregaUseCase {
           body.pagadoPorRemitente,
           patchPedido.fkMetodoPago,
           patchPedido.valorRecaudado,
-          patchPedido.precio ?? null,
         ],
       );
 

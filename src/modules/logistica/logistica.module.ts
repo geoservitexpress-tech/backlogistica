@@ -59,6 +59,15 @@ import { AdminPagosRepartidoresController } from './presentation/http/admin-pago
 import { AdminFinanzasController } from './presentation/http/admin-finanzas.controller';
 import { AdminUsuariosController } from './presentation/http/admin-usuarios.controller';
 import { AdminVariablesController } from './presentation/http/admin-variables.controller';
+import { AdminLiquidacionesController } from './presentation/http/admin-liquidaciones.controller';
+import { TypeOrmLiquidacionClienteRepository } from './infrastructure/persistence/typeorm-liquidacion-cliente.repository';
+import { LIQUIDACION_CLIENTE } from './liquidacion.tokens';
+import {
+  ActualizarClienteLiquidacionConfigUseCase,
+  GenerarLiquidacionClienteUseCase,
+  GetClienteLiquidacionConfigUseCase,
+  ListLiquidacionesPendientesUseCase,
+} from './application/liquidacion-cliente.use-cases';
 import { TypeOrmUsuarioAdminRepository } from './infrastructure/persistence/typeorm-usuario-admin.repository';
 import { USUARIO_ADMIN } from './usuarios-admin.tokens';
 import {
@@ -74,9 +83,11 @@ import { CotizarTarifaUseCase } from './application/cotizar-tarifa.use-case';
 import { TypeOrmPagosRepartidorRepository } from './infrastructure/persistence/typeorm-pagos-repartidor.repository';
 import { PAGOS_REPARTIDOR } from './pagos-repartidor.tokens';
 import {
+  GenerarDispersionRepartidorIndividualUseCase,
   GenerarDispersionRepartidorUseCase,
   GetPagosRepartidorKpisUseCase,
   ListRepartidoresPagoUseCase,
+  PreviewDispersionRepartidorUseCase,
 } from './application/pagos-repartidor.use-cases';
 
 /**
@@ -84,7 +95,7 @@ import {
  */
 @Module({
   imports: [AuthModule, TypeOrmModule.forFeature([...LOGISTICA_TYPEORM_ENTITIES])],
-  controllers: [CatalogoController, PedidosController, FacturasController, AdminFinanzasController, AdminPagosRepartidoresController, AdminUsuariosController, AdminVariablesController, RepartidorPedidosController, SupervisorPedidosController],
+  controllers: [CatalogoController, PedidosController, FacturasController, AdminFinanzasController, AdminPagosRepartidoresController, AdminLiquidacionesController, AdminUsuariosController, AdminVariablesController, RepartidorPedidosController, SupervisorPedidosController],
   providers: [
     TypeOrmCatalogReadRepository,
     { provide: CATALOG_READ, useExisting: TypeOrmCatalogReadRepository },
@@ -101,6 +112,8 @@ import {
     { provide: FINANZAS_KPI, useExisting: TypeOrmFinanzasKpiRepository },
     TypeOrmPagosRepartidorRepository,
     { provide: PAGOS_REPARTIDOR, useExisting: TypeOrmPagosRepartidorRepository },
+    TypeOrmLiquidacionClienteRepository,
+    { provide: LIQUIDACION_CLIENTE, useExisting: TypeOrmLiquidacionClienteRepository },
     TypeOrmUsuarioAdminRepository,
     { provide: USUARIO_ADMIN, useExisting: TypeOrmUsuarioAdminRepository },
     ListPaisesUseCase,
@@ -139,6 +152,12 @@ import {
     GetPagosRepartidorKpisUseCase,
     ListRepartidoresPagoUseCase,
     GenerarDispersionRepartidorUseCase,
+    PreviewDispersionRepartidorUseCase,
+    GenerarDispersionRepartidorIndividualUseCase,
+    ListLiquidacionesPendientesUseCase,
+    GetClienteLiquidacionConfigUseCase,
+    ActualizarClienteLiquidacionConfigUseCase,
+    GenerarLiquidacionClienteUseCase,
     ListUsuariosAdminUseCase,
     ActualizarRolesUsuarioUseCase,
     ListVariablesAdminUseCase,

@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { EJEMPLO_QUERY_DISPERSION_PREVIEW } from './ejemplos/pagos-repartidor.ejemplos';
 import {
   EJEMPLO_QUERY_LIST_PEDIDOS_FILTROS,
   EJEMPLO_QUERY_LIST_PEDIDOS_POR_FECHA,
@@ -51,6 +52,11 @@ export function setupSwagger(app: INestApplication): void {
       'Tablero del día: pedidos en reparto · editar pedido (sin observaciones ni imágenes)',
     )
     .addTag('Catálogo', 'Catálogos de apoyo (países, estados, etc.)')
+    .addTag(
+      'Admin — Pago a Repartidores',
+      'Preview de pago (`GET …/dispersion/preview`) · pago por repartidor (`POST …/repartidores/{id}/dispersion/generar`) · dispersión del día (solo ADMINISTRADOR)',
+    )
+    .addTag('Admin — Liquidaciones', 'Liquidación de recaudos al proveedor/cliente (solo ADMINISTRADOR)')
     .addTag('Admin — Variables', 'Editar parámetros `public.variable` (solo ADMINISTRADOR)')
     .addTag('Admin — Usuarios', 'Usuarios y roles (solo ADMINISTRADOR)')
     .addTag('Ejemplos', 'CRUD de ejemplo (hexagonal)')
@@ -73,6 +79,10 @@ export function setupSwagger(app: INestApplication): void {
   if (schemas?.ListPedidosRepartidorQueryDto && typeof schemas.ListPedidosRepartidorQueryDto === 'object') {
     (schemas.ListPedidosRepartidorQueryDto as Record<string, unknown>).example =
       EJEMPLO_QUERY_LIST_PEDIDOS_REPARTIDOR_FILTROS;
+  }
+  if (schemas?.DispersionPreviewQueryDto && typeof schemas.DispersionPreviewQueryDto === 'object') {
+    (schemas.DispersionPreviewQueryDto as Record<string, unknown>).example =
+      EJEMPLO_QUERY_DISPERSION_PREVIEW;
   }
 
   SwaggerModule.setup('docs', app, document, {

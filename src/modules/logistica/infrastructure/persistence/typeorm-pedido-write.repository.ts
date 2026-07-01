@@ -454,6 +454,7 @@ export class TypeOrmPedidoWriteRepository implements PedidoWritePort {
           direccion,
           estadoPedido: { idEstadoPedido: estado.idEstadoPedido },
           precio: precioEnvio,
+          tarifaEnvio: precioEnvio,
           valorDeclarado: monto,
           fechaEntrega,
           fragil: input.fragil,

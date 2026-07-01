@@ -30,6 +30,7 @@ export const PEDIDO_LISTADO_EJEMPLO = {
   fragil: true,
   pagadoPorRemitente: false,
   precio: 12000,
+  tarifaEnvio: 12000,
   pesoKg: 2.5,
   altoCm: 30,
   anchoCm: 25,
@@ -165,6 +166,14 @@ export class PedidoListadoSchema {
       'visible en POST /pedidos y en GET /pedidos.',
   })
   precio!: number;
+
+  @ApiPropertyOptional({
+    type: 'number',
+    nullable: true,
+    example: 12000,
+    description: 'Tarifa de domicilio fijada al crear; se cobra aunque no se complete la entrega.',
+  })
+  tarifaEnvio!: number | null;
 
   @ApiProperty({ example: false, description: 'Si el remitente pagó al crear el pedido' })
   pagadoPorRemitente!: boolean;

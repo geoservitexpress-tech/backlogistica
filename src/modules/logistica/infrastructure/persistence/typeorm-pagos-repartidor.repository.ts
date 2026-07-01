@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -16,7 +17,11 @@ import {
 import { variacionPorcentaje } from '../../application/finanzas-periodo';
 import { buildPaginado } from '../../domain/paginacion';
 import type {
+  DispersionRepartidorIndividualResultado,
+  DispersionRepartidorLinea,
+  DispersionRepartidorPreview,
   DispersionRepartidorResultado,
+  DispersionPedidoPendiente,
   ListRepartidoresPagoFilter,
   PagosRepartidorKpis,
   PagosRepartidorPort,
@@ -24,6 +29,15 @@ import type {
 } from '../../domain/ports/pagos-repartidor.port';
 import { ESTADO_PEDIDO_ENTREGADO_ID } from '../../logistica-pedido-estados.constants';
 import { ROL_ID_REPARTIDOR } from '../../logistica-rol.constants';
+
+type PendienteDispersionRow = {
+  id_pedido: number;
+  num_guia: string;
+  fecha_entrega: string;
+  fk_usuario_repartidor: number;
+  nombres: string;
+  apellidos: string;
+};
 
 type RepartidorRow = {
   id_usuario: number;
@@ -237,39 +251,217 @@ export class TypeOrmPagosRepartidorRepository implements PagosRepartidorPort {
     return buildPaginado(items, total, filter.page, filter.limit);
   }
 
-  async generarDispersionTotal(): Promise<DispersionRepartidorResultado> {
+  private async assertTablaDispersion(): Promise<void> {
     if (!(await this.tieneTablaDispersion())) {
       throw new BadRequestException(
         'Faltan tablas dispersion_lote / dispersion_detalle. Ejecute database/18-dispersion-repartidor.sql en Supabase.',
       );
     }
+  }
+
+  private async entregasPendientesDispersion(
+    dia: string,
+    idUsuarioRepartidor?: number,
+  ): Promise<PendienteDispersionRow[]> {
+    const params: unknown[] = [ESTADO_PEDIDO_ENTREGADO_ID, dia];
+    let filtroRepartidor = '';
+    if (idUsuarioRepartidor != null) {
+      params.push(idUsuarioRepartidor);
+      filtroRepartidor = `and p.fk_usuario_repartidor = $${params.length}`;
+    }
+
+    return (await this.dataSource.query(
+      `select p.id_pedido, p.num_guia, p.fecha_entrega::text as fecha_entrega,
+              p.fk_usuario_repartidor, u.nombres, u.apellidos
+       from public.pedidos p
+       inner join public.usuarios u on u.id_usuario = p.fk_usuario_repartidor
+       where p.fk_estado_pedido = $1
+         and p.fk_usuario_repartidor is not null
+         and p.fecha_entrega = $2::date
+         and not exists (
+           select 1 from public.dispersion_detalle dd where dd.fk_pedido = p.id_pedido
+         )
+         ${filtroRepartidor}
+       order by p.fk_usuario_repartidor, p.id_pedido`,
+      params,
+    )) as PendienteDispersionRow[];
+  }
+
+  private agruparPendientesPorRepartidor(
+    pendientes: PendienteDispersionRow[],
+    tarifa: number,
+  ): DispersionRepartidorLinea[] {
+    const porRepartidor = new Map<
+      number,
+      { nombre: string; pedidos: DispersionPedidoPendiente[] }
+    >();
+
+    for (const p of pendientes) {
+      const pedido: DispersionPedidoPendiente = {
+        idPedido: p.id_pedido,
+        numGuia: p.num_guia,
+        fechaEntrega: p.fecha_entrega,
+      };
+      const prev = porRepartidor.get(p.fk_usuario_repartidor);
+      const nombre = `${p.nombres} ${p.apellidos}`.trim();
+      if (prev) {
+        prev.pedidos.push(pedido);
+      } else {
+        porRepartidor.set(p.fk_usuario_repartidor, { nombre, pedidos: [pedido] });
+      }
+    }
+
+    return [...porRepartidor.entries()]
+      .map(([idUsuario, v]) => ({
+        idUsuario,
+        codigo: codigoRepartidor(idUsuario),
+        nombre: v.nombre,
+        entregas: v.pedidos.length,
+        tarifaUnitaria: tarifa,
+        monto: v.pedidos.length * tarifa,
+        pedidos: v.pedidos,
+      }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  async previewDispersion(
+    fecha?: string,
+    idUsuarioRepartidor?: number,
+  ): Promise<DispersionRepartidorPreview> {
+    await this.assertTablaDispersion();
+    const tarifa = await this.tarifaEntrega();
+    const dia = fecha ?? hoyYmdBogota();
+    const pendientes = await this.entregasPendientesDispersion(dia, idUsuarioRepartidor);
+    const lineas = this.agruparPendientesPorRepartidor(pendientes, tarifa);
+
+    return {
+      fecha: dia,
+      tarifaUnitaria: tarifa,
+      moneda: 'COP',
+      entregasTotal: pendientes.length,
+      montoTotal: pendientes.length * tarifa,
+      repartidoresTotal: lineas.length,
+      lineas,
+    };
+  }
+
+  async generarDispersionRepartidor(
+    idUsuarioRepartidor: number,
+    fecha?: string,
+  ): Promise<DispersionRepartidorIndividualResultado> {
+    await this.assertTablaDispersion();
+
+    const idRol = await this.idRolRepartidor();
+    const esRepartidor = (await this.dataSource.query(
+      `select 1 from public.usuario_rol where id_usuario = $1 and id_rol = $2 limit 1`,
+      [idUsuarioRepartidor, idRol],
+    )) as unknown[];
+    if (esRepartidor.length === 0) {
+      throw new NotFoundException(`Usuario ${idUsuarioRepartidor} no es repartidor.`);
+    }
 
     const tarifa = await this.tarifaEntrega();
+    const dia = fecha ?? hoyYmdBogota();
 
     return this.dataSource.transaction(async (manager) => {
       const pendientes = (await manager.query(
-        `select p.id_pedido, p.fk_usuario_repartidor, u.nombres, u.apellidos
+        `select p.id_pedido, p.num_guia, p.fecha_entrega::text as fecha_entrega,
+                p.fk_usuario_repartidor, u.nombres, u.apellidos
+         from public.pedidos p
+         inner join public.usuarios u on u.id_usuario = p.fk_usuario_repartidor
+         where p.fk_estado_pedido = $1
+           and p.fk_usuario_repartidor = $2
+           and p.fecha_entrega = $3::date
+           and not exists (
+             select 1 from public.dispersion_detalle dd where dd.fk_pedido = p.id_pedido
+           )
+         order by p.id_pedido`,
+        [ESTADO_PEDIDO_ENTREGADO_ID, idUsuarioRepartidor, dia],
+      )) as PendienteDispersionRow[];
+
+      if (pendientes.length === 0) {
+        throw new BadRequestException(
+          `No hay entregas pendientes de pago para el repartidor ${idUsuarioRepartidor} en ${dia}.`,
+        );
+      }
+
+      const monto = pendientes.length * tarifa;
+      const nombre = `${pendientes[0]!.nombres} ${pendientes[0]!.apellidos}`.trim();
+
+      const loteRows = (await manager.query(
+        `insert into public.dispersion_lote (monto_total, entregas_total, repartidores_total)
+         values ($1, $2, 1)
+         returning id_dispersion, creado_en`,
+        [monto, pendientes.length],
+      )) as { id_dispersion: number; creado_en: Date }[];
+
+      const idDispersion = loteRows[0]!.id_dispersion;
+      const generadoEn = loteRows[0]!.creado_en;
+
+      const pedidos: DispersionPedidoPendiente[] = [];
+      for (const p of pendientes) {
+        await manager.query(
+          `insert into public.dispersion_detalle (id_dispersion, fk_pedido, fk_usuario_repartidor, monto)
+           values ($1, $2, $3, $4)`,
+          [idDispersion, p.id_pedido, idUsuarioRepartidor, tarifa],
+        );
+        pedidos.push({
+          idPedido: p.id_pedido,
+          numGuia: p.num_guia,
+          fechaEntrega: p.fecha_entrega,
+        });
+      }
+
+      this.logger.log(
+        `Dispersión ${idDispersion} repartidor=${idUsuarioRepartidor} (${dia}): ${pendientes.length} entregas, $${monto}`,
+      );
+
+      return {
+        idDispersion,
+        idUsuario: idUsuarioRepartidor,
+        codigo: codigoRepartidor(idUsuarioRepartidor),
+        nombre,
+        fecha: dia,
+        tarifaUnitaria: tarifa,
+        entregas: pendientes.length,
+        monto,
+        moneda: 'COP' as const,
+        generadoEn: generadoEn.toISOString(),
+        pedidos,
+      };
+    });
+  }
+
+  async generarDispersionTotal(fecha?: string): Promise<DispersionRepartidorResultado> {
+    await this.assertTablaDispersion();
+
+    const tarifa = await this.tarifaEntrega();
+    const dia = fecha ?? hoyYmdBogota();
+
+    return this.dataSource.transaction(async (manager) => {
+      const pendientes = (await manager.query(
+        `select p.id_pedido, p.num_guia, p.fecha_entrega::text as fecha_entrega,
+                p.fk_usuario_repartidor, u.nombres, u.apellidos
          from public.pedidos p
          inner join public.usuarios u on u.id_usuario = p.fk_usuario_repartidor
          where p.fk_estado_pedido = $1
            and p.fk_usuario_repartidor is not null
+           and p.fecha_entrega = $2::date
            and not exists (
              select 1 from public.dispersion_detalle dd where dd.fk_pedido = p.id_pedido
            )
          order by p.fk_usuario_repartidor, p.id_pedido`,
-        [ESTADO_PEDIDO_ENTREGADO_ID],
-      )) as {
-        id_pedido: number;
-        fk_usuario_repartidor: number;
-        nombres: string;
-        apellidos: string;
-      }[];
+        [ESTADO_PEDIDO_ENTREGADO_ID, dia],
+      )) as PendienteDispersionRow[];
 
       if (pendientes.length === 0) {
-        throw new BadRequestException('No hay entregas pendientes de dispersión.');
+        throw new BadRequestException(
+          `No hay entregas pendientes de dispersión para ${dia}.`,
+        );
       }
 
       const montoTotal = pendientes.length * tarifa;
+      const lineas = this.agruparPendientesPorRepartidor(pendientes, tarifa);
       const repartidoresSet = new Set(pendientes.map((p) => p.fk_usuario_repartidor));
 
       const loteRows = (await manager.query(
@@ -279,8 +471,8 @@ export class TypeOrmPagosRepartidorRepository implements PagosRepartidorPort {
         [montoTotal, pendientes.length, repartidoresSet.size],
       )) as { id_dispersion: number; creado_en: Date }[];
 
-      const idDispersion = loteRows[0].id_dispersion;
-      const generadoEn = loteRows[0].creado_en;
+      const idDispersion = loteRows[0]!.id_dispersion;
+      const generadoEn = loteRows[0]!.creado_en;
 
       for (const p of pendientes) {
         await manager.query(
@@ -290,30 +482,8 @@ export class TypeOrmPagosRepartidorRepository implements PagosRepartidorPort {
         );
       }
 
-      const porRepartidor = new Map<
-        number,
-        { nombre: string; entregas: number; monto: number }
-      >();
-      for (const p of pendientes) {
-        const prev = porRepartidor.get(p.fk_usuario_repartidor);
-        const nombre = `${p.nombres} ${p.apellidos}`.trim();
-        if (prev) {
-          prev.entregas += 1;
-          prev.monto += tarifa;
-        } else {
-          porRepartidor.set(p.fk_usuario_repartidor, { nombre, entregas: 1, monto: tarifa });
-        }
-      }
-
-      const lineas = [...porRepartidor.entries()].map(([id, v]) => ({
-        codigo: codigoRepartidor(id),
-        nombre: v.nombre,
-        entregas: v.entregas,
-        monto: v.monto,
-      }));
-
       this.logger.log(
-        `Dispersión ${idDispersion} generada: ${pendientes.length} entregas, ${repartidoresSet.size} repartidores, $${montoTotal}`,
+        `Dispersión ${idDispersion} (${dia}): ${pendientes.length} entregas, ${repartidoresSet.size} repartidores, $${montoTotal}`,
       );
 
       return {
@@ -323,6 +493,8 @@ export class TypeOrmPagosRepartidorRepository implements PagosRepartidorPort {
         repartidoresTotal: repartidoresSet.size,
         moneda: 'COP' as const,
         generadoEn: generadoEn.toISOString(),
+        fecha: dia,
+        tarifaUnitaria: tarifa,
         lineas,
       };
     });

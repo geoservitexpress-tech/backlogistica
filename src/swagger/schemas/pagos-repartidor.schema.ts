@@ -60,18 +60,61 @@ export class RepartidorPagoListadoPaginadoSchema {
   items!: RepartidorPagoListadoSchema[];
 }
 
+export class DispersionPedidoPendienteSchema {
+  @ApiProperty({ type: 'integer', example: 42 })
+  idPedido!: number;
+
+  @ApiProperty({ example: 'BL-20260510-19B426' })
+  numGuia!: string;
+
+  @ApiProperty({ example: '2026-06-02' })
+  fechaEntrega!: string;
+}
+
 export class DispersionRepartidorLineaSchema {
+  @ApiProperty({ type: 'integer', example: 5 })
+  idUsuario!: number;
+
   @ApiProperty({ example: 'RP-8842' })
   codigo!: string;
 
   @ApiProperty({ example: 'Juan Rodríguez' })
   nombre!: string;
 
-  @ApiProperty({ example: 12 })
+  @ApiProperty({ example: 5, description: 'Entregas pendientes de pago' })
   entregas!: number;
 
-  @ApiProperty({ example: 144_000 })
+  @ApiProperty({ example: 12_000 })
+  tarifaUnitaria!: number;
+
+  @ApiProperty({ example: 60_000 })
   monto!: number;
+
+  @ApiProperty({ type: DispersionPedidoPendienteSchema, isArray: true })
+  pedidos!: DispersionPedidoPendienteSchema[];
+}
+
+export class DispersionRepartidorPreviewSchema {
+  @ApiProperty({ example: '2026-06-02' })
+  fecha!: string;
+
+  @ApiProperty({ example: 12_000 })
+  tarifaUnitaria!: number;
+
+  @ApiProperty({ example: 'COP', enum: ['COP'] })
+  moneda!: 'COP';
+
+  @ApiProperty({ example: 12 })
+  entregasTotal!: number;
+
+  @ApiProperty({ example: 144_000 })
+  montoTotal!: number;
+
+  @ApiProperty({ example: 3 })
+  repartidoresTotal!: number;
+
+  @ApiProperty({ type: DispersionRepartidorLineaSchema, isArray: true })
+  lineas!: DispersionRepartidorLineaSchema[];
 }
 
 export class DispersionRepartidorResultadoSchema {
@@ -93,6 +136,47 @@ export class DispersionRepartidorResultadoSchema {
   @ApiProperty({ example: '2026-05-23T21:00:00.000Z' })
   generadoEn!: string;
 
+  @ApiProperty({ example: '2026-05-23' })
+  fecha!: string;
+
+  @ApiProperty({ example: 12_000 })
+  tarifaUnitaria!: number;
+
   @ApiProperty({ type: DispersionRepartidorLineaSchema, isArray: true })
   lineas!: DispersionRepartidorLineaSchema[];
+}
+
+export class DispersionRepartidorIndividualResultadoSchema {
+  @ApiProperty({ example: 1 })
+  idDispersion!: number;
+
+  @ApiProperty({ type: 'integer', example: 5 })
+  idUsuario!: number;
+
+  @ApiProperty({ example: 'RP-8842' })
+  codigo!: string;
+
+  @ApiProperty({ example: 'Juan Rodríguez' })
+  nombre!: string;
+
+  @ApiProperty({ example: '2026-06-02' })
+  fecha!: string;
+
+  @ApiProperty({ example: 12_000 })
+  tarifaUnitaria!: number;
+
+  @ApiProperty({ example: 5 })
+  entregas!: number;
+
+  @ApiProperty({ example: 60_000 })
+  monto!: number;
+
+  @ApiProperty({ example: 'COP', enum: ['COP'] })
+  moneda!: 'COP';
+
+  @ApiProperty()
+  generadoEn!: string;
+
+  @ApiProperty({ type: DispersionPedidoPendienteSchema, isArray: true })
+  pedidos!: DispersionPedidoPendienteSchema[];
 }

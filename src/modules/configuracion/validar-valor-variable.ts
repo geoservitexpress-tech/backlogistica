@@ -83,4 +83,7 @@ function validarReglasNegocioVariable(clave: string, n: number): void {
   if (clave === VAR.TARIFA_PESO_BASE_KG && (n < 1 || n > 30)) {
     throw new BadRequestException('TARIFA_PESO_BASE_KG debe estar entre 1 y 30.');
   }
+  if (clave === VAR.FINANZAS_LIQUIDACION_FRECUENCIA_DEFAULT_DIAS && (n < 1 || n > 90)) {
+    throw new BadRequestException('FINANZAS_LIQUIDACION_FRECUENCIA_DEFAULT_DIAS debe estar entre 1 y 90.');
+  }
 }

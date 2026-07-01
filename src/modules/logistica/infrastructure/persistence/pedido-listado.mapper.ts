@@ -63,6 +63,7 @@ export function pedidoOrmToListado(row: PedidoOrmEntity): PedidoListado {
     fotosPaqueteUrls: row.fotosPaqueteUrls ?? null,
     pagadoPorRemitente: row.pagadoPorRemitente ?? false,
     precio: row.precio ?? 0,
+    tarifaEnvio: row.tarifaEnvio != null ? Number(row.tarifaEnvio) : null,
     pesoKg: row.paquete?.peso ?? null,
     altoCm: row.paquete?.altoCm ?? null,
     anchoCm: row.paquete?.anchoCm ?? null,

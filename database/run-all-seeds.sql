@@ -26,7 +26,10 @@
 -- 17. 15-seed-variables.sql
 -- 18. 21-seed-paquete-variables.sql   (límites peso/dimensiones paquete)
 -- 19. 22-seed-tarifa-variables.sql    (tarifas Bogotá / fuera de Bogotá / Express)
--- 20. factura-install.sql          (BD existente: CREATE factura + ALTER FK + estados)
+-- 20. 23-pedido-tarifa-envio.sql        (columna tarifa_envio en pedidos)
+-- 21. 24-liquidacion-cliente.sql        (liquidación recaudos al proveedor)
+-- 22. 25-seed-liquidacion-variables.sql (frecuencia liquidación default)
+-- 23. factura-install.sql          (BD existente: CREATE factura + ALTER FK + estados)
 --
 -- Luego en la app:
 --   • Borrar usuario en Supabase Auth si re-registra el mismo correo
